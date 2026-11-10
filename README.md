@@ -98,3 +98,7 @@ The funded path was also run on testnet: campaign #1 ("Demo Funded") reached its
 
 - Testnet only. No real funds.
 - "Deliverable if funded" is set by the creator and fulfilled off-chain.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
