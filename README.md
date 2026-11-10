@@ -19,6 +19,16 @@ Outcome rule: only `raised` versus `target`, decided once after the deadline.
 
 Example from the live run (campaign #10): the only pledge was 2 NEAR, the cushion was 0.50 NEAR, the target was missed, and the backer claimed **2.50 NEAR (+25%)**.
 
+## Why it matters
+
+On-chain crowdfunding locks backers' funds until the deadline, and a failed campaign leaves them with nothing for that wait. Ukemi asks the creator to put something behind the campaign. The Gold Cushion is posted before the first pledge. If the target is missed, it is paid to the backers. If the target is met, it goes back to the creator.
+
+- **Backers:** a missed campaign pays them (principal plus a share of the cushion) instead of only returning their money.
+- **Creators:** a visible, on-chain signal of confidence. A creator who expects to reach the target gets the cushion back.
+- **Everyone:** the contract takes no fee, and every outcome is decided by one public rule, `raised` versus `target`.
+
+The cushion is a confidence signal and a consolation payment, not a delivery guarantee. See [Failure cases and limits](#failure-cases-and-limits). NEAR's low fees make small pledges practical, and its readable account names make the pledge history easy to follow.
+
 ## Try it in 3 minutes
 
 No wallet is needed for steps 1 to 3.
@@ -124,6 +134,16 @@ The contract has no pause or upgrade logic, but pledges sit in the balance of `u
 **What the contract does enforce.** The outcome depends only on `raised` versus `target`, decided once after the deadline. Pledged funds leave the contract only through `claim_refund` (missed campaigns, once per backer) or `withdraw` (the creator, once). These rules have unit tests in `src/lib.rs`. Limits 1 and 2 above are demonstrated by the `known_limit_*` tests in the same file.
 
 Testnet only, no real funds. The contract has not been audited.
+
+## Roadmap
+
+Each item answers one of the limits above, in rough priority order. None of this is built yet.
+
+1. **Time-weighted bonus** (limit 2). Weight each pledge's share of the cushion by how long the pledge was locked, so a pledge placed just before the deadline earns little.
+2. **Milestone-released cushion** (limit 3). After a campaign is funded, hold the cushion and release it to the creator as backers approve milestones, weighted by pledge size. A milestone that is not approved forfeits its part of the cushion to the backers. This turns the cushion from a consolation payment into a delivery incentive. The open design question is who confirms delivery.
+3. **Raise the cost of self-funding** (limit 1). For example minimum pledge sizes and a delay before the creator can withdraw. Full sybil resistance needs an identity layer, which is out of scope for now.
+4. **Safer payouts and storage** (limits 5 and 6). Handle failed transfers with callbacks, and collect a storage deposit in `create_campaign` and `back`.
+5. **Hardening and mainnet** (limit 4). External audit, then remove the full-access key or move it to a multisig before any mainnet deployment.
 
 ## License
 
