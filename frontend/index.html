@@ -1,0 +1,1885 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ukemi (oo-keh-mee) — Assurance Crowdfunding on NEAR</title>
+
+  <!-- Dynamic Favicon: Roll + Gold Cushion (24x24 viewBox, 3 colors only: #1b1340, #ffb703, #ffffff, no outlines, no gradients) -->
+  <link
+    id="ukemi-favicon"
+    rel="icon"
+    type="image/svg+xml"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24'%3E%3Ccircle cx='12' cy='10.5' r='7' fill='%231b1340'/%3E%3Ccircle cx='9.75' cy='10' r='1.35' fill='%23ffffff'/%3E%3Ccircle cx='14.25' cy='10' r='1.35' fill='%23ffffff'/%3E%3Cpath d='M2 16.5C2 15.67 2.67 15 3.5 15C4.1 15 4.6 15.35 4.85 15.85C6.3 17.6 9 18.5 12 18.5C15 18.5 17.7 17.6 19.15 15.85C19.4 15.35 19.9 15 20.5 15C21.33 15 22 15.67 22 16.5C22 20.1 17.52 22.5 12 22.5C6.48 22.5 2 20.1 2 16.5Z' fill='%23ffb703'/%3E%3C/svg%3E"
+  />
+
+  <!-- Google Fonts: Plus Jakarta Sans (400, 500, 600, 700, 800) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            ukemi: {
+              indigo: '#1b1340',
+              indigoLight: '#2c2063',
+              indigoMuted: '#f4f2f9',
+              gold: '#ffb703',
+              goldSoft: '#fff6db',
+              goldBorder: '#ffe082',
+              surface: '#fcfbfd',
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    :root {
+      --ukemi-indigo: #1b1340;
+      --ukemi-gold: #ffb703;
+      --ukemi-white: #ffffff;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color: var(--ukemi-indigo);
+      background-color: #f8f7fc;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Wordmark strict rule: Plus Jakarta Sans ExtraBold (800) with tight letter spacing */
+    .ukemi-wordmark {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      color: var(--ukemi-indigo);
+    }
+
+    /* Custom Range Slider Styling */
+    input[type="range"].ukemi-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      background: #e2ddf0;
+      outline: none;
+    }
+
+    input[type="range"].ukemi-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #1b1340;
+      border: 3px solid #ffb703;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    input[type="range"].ukemi-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+      box-shadow: 0 0 0 4px rgba(255, 183, 3, 0.25);
+    }
+
+    input[type="range"].ukemi-slider::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #1b1340;
+      border: 3px solid #ffb703;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    /* Outcome Panel Active Highlighting */
+    .outcome-panel {
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .outcome-panel-active-funded {
+      border-color: #1b1340 !important;
+      box-shadow: 0 14px 30px -10px rgba(27, 19, 64, 0.16);
+      transform: translateY(-2px);
+    }
+    .outcome-panel-active-missed {
+      border-color: #ffb703 !important;
+      box-shadow: 0 14px 30px -10px rgba(255, 183, 3, 0.28);
+      transform: translateY(-2px);
+    }
+    .outcome-panel-inactive {
+      opacity: 0.68;
+      filter: saturate(0.85);
+    }
+
+    /* Back modal: soft fade + rise on open (the animate-fadeIn class was used but never defined) */
+    @keyframes ukemi-fade-in {
+      from { opacity: 0; transform: translateY(10px) scale(0.98); }
+      to   { opacity: 1; transform: none; }
+    }
+    .animate-fadeIn { animation: ukemi-fade-in 0.22s ease-out both; }
+
+    /* Campaign card: gold pulse twice when its deadline just passed */
+    @keyframes ukemi-deadline-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(255, 183, 3, 0.75); }
+      100% { box-shadow: 0 0 0 16px rgba(255, 183, 3, 0); }
+    }
+    .card-just-ended { animation: ukemi-deadline-pulse 1.1s ease-out 2; }
+
+    /* Respect "reduce motion" settings */
+    @media (prefers-reduced-motion: reduce) {
+      .animate-fadeIn, .card-just-ended, .animate-ping { animation: none !important; }
+      .outcome-panel { transition: none !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-[#ffb703] selection:text-[#1b1340]">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[#1b1340]/10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+      
+      <!-- Brand Logo (Mascot Location #2: 28x28 Roll on Gold Cushion + Wordmark) -->
+      <div class="flex items-center gap-3">
+        <a href="#top" onclick="switchMainTab('explore'); return false;" class="inline-flex items-center gap-2.5 group focus:outline-none" aria-label="Ukemi Home">
+          <!-- Roll 28x28 Flat Geometric SVG: Strictly 3 colors (#1b1340, #ffb703, #ffffff), no outlines, no gradients -->
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" class="transition-transform duration-200 group-hover:scale-105">
+            <circle cx="12" cy="10.5" r="7" fill="#1b1340"/>
+            <circle cx="9.75" cy="10" r="1.35" fill="#ffffff"/>
+            <circle cx="14.25" cy="10" r="1.35" fill="#ffffff"/>
+            <path d="M2 16.5C2 15.67 2.67 15 3.5 15C4.1 15 4.6 15.35 4.85 15.85C6.3 17.6 9 18.5 12 18.5C15 18.5 17.7 17.6 19.15 15.85C19.4 15.35 19.9 15 20.5 15C21.33 15 22 15.67 22 16.5C22 20.1 17.52 22.5 12 22.5C6.48 22.5 2 20.1 2 16.5Z" fill="#ffb703"/>
+          </svg>
+          <span class="ukemi-wordmark text-2xl">Ukemi</span>
+        </a>
+        <span class="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#f4f2f9] text-[#1b1340]/80 border border-[#1b1340]/10">
+          (oo-keh-mee) · soft fall
+        </span>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="order-3 w-full grid grid-cols-2 gap-1 sm:flex sm:justify-center sm:gap-1.5 border-t pt-3 border-[#1b1340]/10">
+        <button
+          id="nav-tab-explore"
+          onclick="switchMainTab('explore')"
+          class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all bg-[#1b1340] text-white inline-flex items-center justify-center gap-1.5 whitespace-nowrap sm:px-5"
+        >
+          Explore Campaigns
+        </button>
+        <button
+          id="nav-tab-simulator"
+          onclick="switchMainTab('simulator')"
+          class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all text-[#1b1340]/80 hover:bg-[#f4f2f9] hover:text-[#1b1340] inline-flex items-center justify-center gap-1.5 whitespace-nowrap sm:px-5"
+        >
+          Outcome Simulator
+        </button>
+        <button
+          id="nav-tab-launch"
+          onclick="switchMainTab('launch')"
+          class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all text-[#1b1340]/80 hover:bg-[#f4f2f9] hover:text-[#1b1340] inline-flex items-center justify-center gap-1.5 whitespace-nowrap sm:px-5"
+        >
+          Launch Campaign
+        </button>
+        <button
+          id="nav-tab-backings"
+          onclick="switchMainTab('backings')"
+          class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all text-[#1b1340]/80 hover:bg-[#f4f2f9] hover:text-[#1b1340] inline-flex items-center justify-center gap-1.5 whitespace-nowrap sm:px-5"
+        >
+          <span>My Backings</span>
+          <span id="nav-backings-count" class="hidden px-1.5 py-0.5 text-[11px] font-extrabold rounded-full bg-[#ffb703] text-[#1b1340]">0</span>
+        </button>
+      </nav>
+
+      <!-- Interactive NEAR Wallet & Balance Bar -->
+      <div class="flex flex-wrap items-center justify-end gap-2.5 order-2">
+        <span class="inline-flex items-center h-9 px-2.5 rounded-xl text-[11px] font-extrabold tracking-wider bg-[#f4f2f9] text-[#1b1340] border border-[#1b1340]/10">TESTNET</span>
+        <!-- Balance Pill -->
+        <div id="wallet-balance-pill" class="flex items-center gap-2 h-9 box-border bg-[#fff6db] border border-[#ffb703]/60 px-3 rounded-xl">
+          <span class="w-2 h-2 rounded-full bg-[#ffb703]"></span>
+          <div class="text-xs sm:text-sm leading-none">
+            <span class="text-[#1b1340]/70 font-medium hidden sm:inline">Balance:</span>
+            <span id="user-near-balance" class="font-extrabold text-[#1b1340]">—</span>
+          </div>
+        </div>
+
+        <!-- Wallet button + Log out menu -->
+        <div id="wallet-box" class="relative">
+          <button
+            id="wallet-connect-btn"
+            onclick="walletButtonClick()"
+            class="inline-flex items-center gap-2 h-9 box-border px-3.5 rounded-xl text-xs sm:text-sm font-bold leading-none bg-[#1b1340] text-white hover:bg-[#2c2063] transition shadow-sm"
+          >
+            <span id="wallet-status-dot" class="w-2 h-2 rounded-full bg-[#ffb703]"></span>
+            <span id="wallet-account-label" class="truncate max-w-[10rem] sm:max-w-none">Connect Wallet</span>
+          </button>
+          <div id="wallet-menu" class="hidden absolute right-0 top-full mt-2 w-max min-w-full z-50 bg-white rounded-xl border border-[#1b1340]/15 shadow-lg p-1">
+            <button onclick="switchWalletAccount()" class="w-full text-left whitespace-nowrap px-3 py-2 rounded-lg text-xs sm:text-sm font-bold text-[#1b1340] hover:bg-[#f4f2f9] transition">Switch account</button>
+            <button onclick="disconnectWallet()" class="w-full text-left whitespace-nowrap px-3 py-2 rounded-lg text-xs sm:text-sm font-bold text-[#1b1340] hover:bg-[#f4f2f9] transition">Disconnect</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN APPLICATION CONTAINER -->
+  <main id="top" class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+
+    <!-- HERO SECTION & DUAL OUTCOME PANELS (ALWAYS ACCESSIBLE OR HIGHLIGHTED IN SIMULATOR) -->
+    <section id="hero-and-outcomes" class="bg-white rounded-3xl border border-[#1b1340]/10 shadow-sm overflow-hidden">
+      <div class="p-6 sm:p-8 lg:p-10">
+        
+        <!-- Top Philosophy Header -->
+        <div class="max-w-3xl">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#fff6db] border border-[#ffb703] text-xs font-extrabold text-[#1b1340] mb-4">
+            <span>Assurance crowdfunding on NEAR</span>
+            <span>·</span>
+            <span>Win-win by design</span>
+          </div>
+          <h1 class="text-3xl sm:text-4xl lg:text-[42px] font-extrabold tracking-tight text-[#1b1340] leading-[1.12]">
+            When a campaign misses its target, backers fall softly and come out ahead.
+          </h1>
+          <p class="mt-4 text-base sm:text-lg text-[#1b1340]/75 leading-relaxed font-medium">
+            Named after <strong class="font-bold text-[#1b1340]">Ukemi</strong> (the Japanese art of falling safely), creators commit a <strong class="font-bold text-[#1b1340] underline decoration-[#ffb703] decoration-2 underline-offset-4">Gold Cushion</strong> bonus pool upfront. If the target is met, the creator builds and the cushion returns to them. If the campaign falls short, every backer receives <strong class="font-bold text-[#1b1340]">100% of their principal back plus a proportional share of the Gold Cushion</strong>.
+          </p>
+        </div>
+
+        <!-- How it works -->
+        <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="rounded-2xl border border-[#1b1340]/10 bg-[#f8f7fc] p-4">
+            <p class="text-xs font-extrabold text-[#1b1340]/70">Step 1 · Creator</p>
+            <p class="mt-1 text-sm font-semibold text-[#1b1340] leading-snug">Sets a funding target and commits a Gold Cushion up front.</p>
+          </div>
+          <div class="rounded-2xl border border-[#1b1340]/10 bg-[#f8f7fc] p-4">
+            <p class="text-xs font-extrabold text-[#1b1340]/70">Step 2 · Backers</p>
+            <p class="mt-1 text-sm font-semibold text-[#1b1340] leading-snug">Pledge NEAR before the deadline. Nothing else is needed.</p>
+          </div>
+          <div class="rounded-2xl border border-[#1b1340]/10 bg-[#f8f7fc] p-4">
+            <p class="text-xs font-extrabold text-[#1b1340]/70">Step 3 · Deadline</p>
+            <p class="mt-1 text-sm font-semibold text-[#1b1340] leading-snug">Target met: creator withdraws, cushion returns. Target missed: backers claim principal plus a share of the cushion.</p>
+          </div>
+        </div>
+        <p class="mt-3 text-xs sm:text-sm font-semibold text-[#1b1340]/75">
+          The only rule: the outcome depends on raised versus target. Your bonus = your pledge ÷ total raised × cushion.
+        </p>
+        <p class="mt-2 text-xs sm:text-sm text-[#1b1340]/75">
+          <strong class="text-[#1b1340]">Try the math:</strong> slide the pledge below to see how your payout changes with the funding result. Open Explore Campaigns for live campaigns on ukemi.testnet, and connect a testnet wallet to back, finalize, claim and withdraw.
+        </p>
+
+        <!-- Interactive Simulator Bar + Dual Outcome Panels -->
+        <div id="simulator-section" class="mt-8 pt-8 border-t border-[#1b1340]/10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          
+          <!-- Left Column (5 cols): Interactive Soft-Fall & Pledge Controls -->
+          <div class="lg:col-span-5 bg-[#f8f7fc] rounded-2xl p-5 sm:p-6 border border-[#1b1340]/10 space-y-5">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-xs font-extrabold tracking-wider text-[#1b1340]/70">Interactive Live Math</span>
+                <h2 class="text-lg font-extrabold text-[#1b1340]">Pledge &amp; Soft-Fall Simulator</h2>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button
+                  onclick="setSimulatorPreset(65)"
+                  class="px-2.5 py-1 rounded-lg text-xs font-bold bg-[#ffb703] text-[#1b1340] hover:brightness-95 transition"
+                >
+                  Test Missed (65%)
+                </button>
+                <button
+                  onclick="setSimulatorPreset(108)"
+                  class="px-2.5 py-1 rounded-lg text-xs font-bold bg-[#1b1340] text-white hover:bg-[#2c2063] transition"
+                >
+                  Test Funded (108%)
+                </button>
+              </div>
+            </div>
+
+            <!-- Illustrative-numbers note -->
+            <p class="text-xs font-semibold text-[#1b1340]/70 leading-relaxed">
+              Illustrative numbers only. Real campaigns on ukemi.testnet are listed in
+              <button type="button" onclick="document.getElementById('view-explore').scrollIntoView({ behavior: 'smooth' })" class="font-extrabold text-[#1b1340] underline decoration-[#ffb703] decoration-2 underline-offset-2">Explore Campaigns</button> below.
+            </p>
+
+            <!-- Control 1: Your Pledge Amount -->
+            <div class="space-y-2">
+              <div class="flex justify-between items-center text-sm">
+                <label for="sim-pledge-slider" class="font-bold text-[#1b1340]">Your Backer Pledge</label>
+                <div class="flex items-center gap-1.5">
+                  <input
+                    id="sim-pledge-input"
+                    type="number"
+                    min="5"
+                    max="20"
+                    step="1"
+                    value="10"
+                    oninput="syncSimulatorFromInput()"
+                    class="w-24 text-right font-extrabold text-[#1b1340] bg-white border border-[#1b1340]/20 rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-[#1b1340]"
+                  />
+                  <span class="text-xs font-extrabold text-[#1b1340]/70">NEAR</span>
+                </div>
+              </div>
+              <input
+                id="sim-pledge-slider"
+                type="range"
+                min="5"
+                max="20"
+                step="1"
+                value="10"
+                oninput="syncSimulatorFromSlider()"
+                class="ukemi-slider"
+              />
+              <div class="flex justify-between text-[11px] font-semibold text-[#1b1340]/70">
+                <span>5 NEAR</span>
+                <span>10 NEAR</span>
+                <span>15 NEAR</span>
+                <span>20 NEAR</span>
+              </div>
+            </div>
+
+            <!-- Control 2: Simulated Campaign Final Funding % -->
+            <div class="space-y-2 pt-2 border-t border-[#1b1340]/10">
+              <div class="flex justify-between items-center text-sm">
+                <label for="sim-funding-slider" class="font-bold text-[#1b1340]">Simulated Final Progress</label>
+                <span id="sim-funding-badge" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-[#fff6db] text-[#1b1340] border border-[#ffb703]">
+                  65% of Target (Missed)
+                </span>
+              </div>
+              <input
+                id="sim-funding-slider"
+                type="range"
+                min="20"
+                max="140"
+                step="1"
+                value="65"
+                oninput="updateSimulator()"
+                class="ukemi-slider"
+              />
+              <div class="flex justify-between text-[11px] font-semibold text-[#1b1340]/70">
+                <span>20%</span>
+                <span class="text-[#1b1340] font-bold">100% Target Line</span>
+                <span>140%</span>
+              </div>
+            </div>
+
+            <!-- Control 3: Campaign Target & Gold Cushion Pool Settings -->
+            <div class="grid grid-cols-2 gap-3 pt-2 border-t border-[#1b1340]/10">
+              <div class="bg-white p-3 rounded-xl border border-[#1b1340]/10">
+                <label for="sim-target-select" class="block text-[11px] font-bold text-[#1b1340]/70">Campaign Target</label>
+                <select
+                  id="sim-target-select"
+                  onchange="updateSimulator()"
+                  class="mt-1 w-full font-extrabold text-sm text-[#1b1340] bg-transparent focus:outline-none cursor-pointer"
+                >
+                  <option value="100" selected>100 NEAR</option>
+                  <option value="200">200 NEAR</option>
+                  <option value="500">500 NEAR</option>
+                </select>
+              </div>
+              <div class="bg-[#fff6db]/70 p-3 rounded-xl border border-[#ffb703]/60">
+                <label for="sim-cushion-select" class="block text-[11px] font-bold text-[#1b1340]/70">Creator Gold Cushion</label>
+                <select
+                  id="sim-cushion-select"
+                  onchange="updateSimulator()"
+                  class="mt-1 w-full font-extrabold text-sm text-[#1b1340] bg-transparent focus:outline-none cursor-pointer"
+                >
+                  <option value="5">5 NEAR (5%)</option>
+                  <option value="10" selected>10 NEAR (10%)</option>
+                  <option value="15">15 NEAR (15%)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Formula Footnote -->
+            <div class="text-xs text-[#1b1340]/70 bg-white/80 rounded-xl p-3 border border-[#1b1340]/10 leading-relaxed">
+              <strong class="text-[#1b1340]">Soft-Fall Bonus Formula:</strong> Your Pledge Share (<span id="sim-share-pct" class="font-bold text-[#1b1340]">15.38%</span> of total raised) × Creator's Gold Cushion (<span id="sim-cushion-label" class="font-bold text-[#1b1340]">10 NEAR</span>) = <span id="sim-bonus-inline" class="font-extrabold text-[#1b1340] bg-[#ffb703]/40 px-1.5 py-0.5 rounded">+1.54 NEAR Bonus</span>.
+            </div>
+          </div>
+
+          <!-- Right Column (7 cols): THE TWO OUTCOME PANELS (Featuring the exact 56px Roll SVGs) -->
+          <div class="lg:col-span-7 grid grid-cols-1 md:grid-cols-2 gap-5">
+            
+            <!-- OUTCOME PANEL 1: FUNDED (56px SVG of Roll standing upright on target line, cushion untouched) -->
+            <div
+              id="outcome-card-funded"
+              onclick="setSimulatorPreset(108)"
+              class="outcome-panel cursor-pointer rounded-2xl bg-white p-6 border-2 border-[#1b1340]/15 flex flex-col justify-between relative"
+            >
+              <div>
+                <div class="flex items-start justify-between gap-3 mb-5">
+                  <!-- Mascot Location #3: 56px Funded Illustration (Strictly 3 colors: #1b1340, #ffb703, #ffffff, no outlines, no gradients) -->
+                  <div class="p-2 rounded-2xl bg-[#f4f2f9] inline-flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56" width="56" height="56" role="img" aria-label="Campaign funded: Roll standing upright on the target line, cushion untouched">
+                      <!-- Roll standing upright on the target line -->
+                      <circle cx="28" cy="21" r="13" fill="#1b1340"/>
+                      <!-- Two simple white eyes -->
+                      <circle cx="24" cy="19.5" r="2.2" fill="#ffffff"/>
+                      <circle cx="32" cy="19.5" r="2.2" fill="#ffffff"/>
+                      <!-- Horizontal Target Line -->
+                      <rect x="6" y="34" width="44" height="3" rx="1.5" fill="#1b1340"/>
+                      <!-- Untouched Gold Cushion below -->
+                      <path d="M12 45C12 43.9 12.9 43 14 43C14.7 43 15.3 43.4 15.7 44C18.2 46.2 22.8 47.5 28 47.5C33.2 47.5 37.8 46.2 40.3 44C40.7 43.4 41.3 43 42 43C43.1 43 44 43.9 44 45C44 49.5 36.8 52.5 28 52.5C19.2 52.5 12 49.5 12 45Z" fill="#ffb703"/>
+                    </svg>
+                  </div>
+
+                  <div class="text-right">
+                    <span id="badge-state-funded" class="inline-block px-2.5 py-1 rounded-full text-[11px] font-extrabold tracking-wider bg-[#f4f2f9] text-[#1b1340]">
+                      Target ≥ 100%
+                    </span>
+                    <p class="text-xs font-bold text-[#1b1340]/70 mt-1">Cushion Untouched</p>
+                  </div>
+                </div>
+
+                <h3 class="text-xl font-extrabold text-[#1b1340]">Outcome A · Funded</h3>
+                <p class="mt-1.5 text-xs sm:text-sm text-[#1b1340]/75 font-medium leading-relaxed">
+                  Roll stands upright on the target line. Your pledge funds the creator's build, you receive campaign rewards, and the untouched Gold Cushion returns to the creator.
+                </p>
+              </div>
+
+              <!-- Live Outcome Math Box -->
+              <div class="mt-6 pt-4 border-t border-[#1b1340]/10 space-y-2.5 text-sm">
+                <div class="flex justify-between items-center">
+                  <span class="text-[#1b1340]/70 font-medium">Your Pledge Deployed:</span>
+                  <span id="funded-panel-pledge" class="font-bold text-[#1b1340]">10 NEAR</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-[#1b1340]/70 font-medium">Backer Deliverable:</span>
+                  <span class="font-extrabold text-[#1b1340]">Full Project Rewards</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-[#1b1340]/70 font-medium">Creator Cushion Refund:</span>
+                  <span id="funded-panel-cushion-return" class="font-bold text-[#1b1340]">10 NEAR returned</span>
+                </div>
+                <div class="mt-3 pt-2.5 border-t border-[#1b1340]/10 flex items-center justify-between bg-[#f4f2f9] px-3 py-2 rounded-xl">
+                  <span class="text-xs font-bold text-[#1b1340]">Outcome Status</span>
+                  <span class="text-xs font-extrabold text-[#1b1340]">Project Ships · 0% Loss</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- OUTCOME PANEL 2: MISSED / SOFT FALL (56px SVG of Roll resting on the gold cushion holding one golden coin) -->
+            <div
+              id="outcome-card-missed"
+              onclick="setSimulatorPreset(65)"
+              class="outcome-panel outcome-panel-active-missed cursor-pointer rounded-2xl bg-white p-6 border-2 border-[#ffb703] flex flex-col justify-between relative"
+            >
+              <div>
+                <div class="flex items-start justify-between gap-3 mb-5">
+                  <!-- Mascot Location #4: 56px Missed Illustration (Strictly 3 colors: #1b1340, #ffb703, #ffffff, no outlines, no gradients) -->
+                  <div class="p-2 rounded-2xl bg-[#fff6db] inline-flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56" width="56" height="56" role="img" aria-label="Campaign missed: Roll resting on the gold cushion holding a golden bonus coin">
+                      <!-- Unreached Target Line Above -->
+                      <rect x="10" y="8" width="8" height="2.5" rx="1.25" fill="#1b1340"/>
+                      <rect x="24" y="8" width="8" height="2.5" rx="1.25" fill="#1b1340"/>
+                      <rect x="38" y="8" width="8" height="2.5" rx="1.25" fill="#1b1340"/>
+                      <!-- Roll Settled Softly in Cushion -->
+                      <circle cx="26" cy="29" r="13" fill="#1b1340"/>
+                      <!-- Two simple white eyes -->
+                      <circle cx="21.5" cy="26" r="2.2" fill="#ffffff"/>
+                      <circle cx="28.5" cy="26.5" r="2.2" fill="#ffffff"/>
+                      <!-- One Golden Bonus Coin held by Roll -->
+                      <circle cx="31.5" cy="33.5" r="4.5" fill="#ffb703"/>
+                      <!-- Curved Gold Cushion Catching Roll -->
+                      <path d="M6 39.5C6 38.1 7.1 37 8.5 37C9.4 37 10.2 37.5 10.6 38.2C14.2 41.8 20.6 43.8 28 43.8C35.4 43.8 41.8 41.8 45.4 38.2C45.8 37.5 46.6 37 47.5 37C48.9 37 50 38.1 50 39.5C50 46.2 40.2 50.5 28 50.5C15.8 50.5 6 46.2 6 39.5Z" fill="#ffb703"/>
+                    </svg>
+                  </div>
+
+                  <div class="text-right">
+                    <span id="badge-state-missed" class="inline-block px-2.5 py-1 rounded-full text-[11px] font-extrabold tracking-wider bg-[#ffb703] text-[#1b1340]">
+                      Active Simulation · 65%
+                    </span>
+                    <p class="text-xs font-bold text-[#1b1340]/70 mt-1">Soft Fall + Bonus Coin</p>
+                  </div>
+                </div>
+
+                <h3 class="text-xl font-extrabold text-[#1b1340]">Outcome B · Missed (Soft Fall)</h3>
+                <p class="mt-1.5 text-xs sm:text-sm text-[#1b1340]/75 font-medium leading-relaxed">
+                  Roll lands softly on the gold cushion holding a golden bonus coin. Backers immediately recover 100% of their principal plus their share of the Gold Cushion.
+                </p>
+              </div>
+
+              <!-- Live Outcome Math Box -->
+              <div class="mt-6 pt-4 border-t border-[#1b1340]/10 space-y-2.5 text-sm">
+                <div class="flex justify-between items-center">
+                  <span class="text-[#1b1340]/70 font-medium">100% Principal Refund:</span>
+                  <span id="missed-panel-principal" class="font-bold text-[#1b1340]">10 NEAR</span>
+                </div>
+                <div class="flex justify-between items-center">
+                  <span class="text-[#1b1340]/70 font-medium">Gold Cushion Bonus Coin:</span>
+                  <span id="missed-panel-bonus" class="font-extrabold text-[#1b1340] bg-[#fff6db] px-2 py-0.5 rounded-lg border border-[#ffb703]">+1.54 NEAR (+15.4%)</span>
+                </div>
+                <div class="mt-3 pt-2.5 border-t border-[#1b1340]/10 flex items-center justify-between bg-[#ffb703] px-3.5 py-2.5 rounded-xl">
+                  <span class="text-xs font-extrabold text-[#1b1340]">Total Soft-Fall Payout</span>
+                  <span id="missed-panel-total" class="text-base font-extrabold text-[#1b1340]">11.54 NEAR</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 1: CAMPAIGN EXPLORER -->
+    <section id="view-explore" class="space-y-6">
+      <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <span class="text-xs font-extrabold tracking-wider text-[#1b1340]/70">Assurance Pools</span>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-[#1b1340]">Explore Ukemi Campaigns</h2>
+        </div>
+
+        <!-- Filter Pills -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            onclick="filterCampaigns('all')"
+            id="filter-btn-all"
+            class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-[#1b1340] text-white transition"
+          >
+            All Campaigns
+          </button>
+          <button
+            onclick="filterCampaigns('active')"
+            id="filter-btn-active"
+            class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white text-[#1b1340] border border-[#1b1340]/15 hover:bg-[#f4f2f9] transition"
+          >
+            Active
+          </button>
+          <button
+            onclick="filterCampaigns('funded')"
+            id="filter-btn-funded"
+            class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white text-[#1b1340] border border-[#1b1340]/15 hover:bg-[#f4f2f9] transition"
+          >
+            Funded (Target Met)
+          </button>
+          <button
+            onclick="filterCampaigns('missed')"
+            id="filter-btn-missed"
+            class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white text-[#1b1340] border border-[#1b1340]/15 hover:bg-[#f4f2f9] transition inline-flex items-center gap-1.5"
+          >
+            <span class="w-2 h-2 rounded-full bg-[#ffb703]"></span>
+            <span>Soft-Fall / Missed</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Deadline resolution banner -->
+      <div class="bg-[#fff6db]/80 border border-[#ffb703] rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div class="text-xs sm:text-sm text-[#1b1340] font-medium">
+          <strong class="font-extrabold">Deadline resolution:</strong> Campaigns below are read live from <a href="https://testnet.nearblocks.io/address/ukemi.testnet" target="_blank" rel="noopener" class="font-bold underline decoration-[#1b1340]">ukemi.testnet ↗</a>. Once a deadline passes, anyone can finalize it, then the creator withdraws or backers claim.
+        </div>
+        <button
+          onclick="switchMainTab('backings')"
+          class="shrink-0 px-3.5 py-2 rounded-xl text-xs font-extrabold bg-[#1b1340] text-white hover:bg-[#2c2063] transition"
+        >
+          View My Backings &amp; Claims
+        </button>
+      </div>
+
+      <div id="campaign-hidden-note" class="hidden text-xs sm:text-sm font-semibold text-[#1b1340]/75"></div>
+
+      <!-- Campaign Cards Grid -->
+      <div id="campaigns-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Populated dynamically by JS -->
+      </div>
+    </section>
+
+    <!-- VIEW 2: LAUNCH CAMPAIGN CREATOR STUDIO -->
+    <section id="view-launch" class="hidden space-y-6">
+      <div class="max-w-4xl mx-auto bg-white rounded-3xl border border-[#1b1340]/10 shadow-sm overflow-hidden">
+        <div class="p-6 sm:p-8 lg:p-10 border-b border-[#1b1340]/10 bg-[#f8f7fc]">
+          <span class="text-xs font-extrabold tracking-wider text-[#1b1340]/70">Creator Assurance Studio</span>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-[#1b1340] mt-1">Launch a Campaign with a Gold Cushion</h2>
+          <p class="mt-2 text-sm sm:text-base text-[#1b1340]/75 font-medium">
+            Signal unshakable confidence in your roadmap. Commit a Gold Cushion up front—if your campaign hits its goal, your cushion comes right back to you along with the raised funds.
+          </p>
+        </div>
+
+        <form id="launch-campaign-form" onsubmit="handleLaunchCampaign(event)" class="p-6 sm:p-8 lg:p-10 grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div class="lg:col-span-7 space-y-5">
+            <div>
+              <label class="block text-xs font-extrabold tracking-wider text-[#1b1340]/70 mb-2">Campaign Title</label>
+              <input
+                id="launch-title"
+                type="text"
+                required
+                placeholder="e.g., Horizon Zero-Knowledge Indexer for NEAR"
+                class="w-full px-4 py-3 rounded-xl border border-[#1b1340]/20 font-semibold text-[#1b1340] focus:outline-none focus:border-[#1b1340]"
+              />
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-extrabold tracking-wider text-[#1b1340]/70 mb-2">Category (UI only, not on-chain)</label>
+                <select
+                  id="launch-category"
+                  class="w-full px-4 py-3 rounded-xl border border-[#1b1340]/20 font-bold text-[#1b1340] bg-white focus:outline-none focus:border-[#1b1340]"
+                >
+                  <option value="Infrastructure">Infrastructure</option>
+                  <option value="Developer Tools">Developer Tools</option>
+                  <option value="Open Hardware">Open Hardware</option>
+                  <option value="Public Goods">Public Goods</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-extrabold tracking-wider text-[#1b1340]/70 mb-2">Duration (Minutes)</label>
+                <input
+                  id="launch-days"
+                  type="number"
+                  min="1"
+                  max="43200"
+                  placeholder="e.g., 10080 (7 days)"
+                  required
+                  class="w-full px-4 py-3 rounded-xl border border-[#1b1340]/20 font-bold text-[#1b1340] focus:outline-none focus:border-[#1b1340]"
+                />
+                <div class="grid grid-cols-4 gap-1.5 mt-2">
+                  <button type="button" onclick="setLaunchDuration(10)" class="w-full px-1 py-1.5 rounded-lg text-xs font-bold text-center whitespace-nowrap bg-[#f4f2f9] text-[#1b1340] hover:bg-[#e2ddf0]">10 min</button>
+                  <button type="button" onclick="setLaunchDuration(60)" class="w-full px-1 py-1.5 rounded-lg text-xs font-bold text-center whitespace-nowrap bg-[#f4f2f9] text-[#1b1340] hover:bg-[#e2ddf0]">1 hour</button>
+                  <button type="button" onclick="setLaunchDuration(1440)" class="w-full px-1 py-1.5 rounded-lg text-xs font-bold text-center whitespace-nowrap bg-[#f4f2f9] text-[#1b1340] hover:bg-[#e2ddf0]">1 day</button>
+                  <button type="button" onclick="setLaunchDuration(10080)" class="w-full px-1 py-1.5 rounded-lg text-xs font-bold text-center whitespace-nowrap bg-[#f4f2f9] text-[#1b1340] hover:bg-[#e2ddf0]">7 days</button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-extrabold tracking-wider text-[#1b1340]/70 mb-2">Pitch &amp; Deliverable Summary</label>
+              <textarea
+                id="launch-desc"
+                rows="3"
+                required
+                placeholder="Describe what you will deliver to backers if the target is reached..."
+                class="w-full px-4 py-3 rounded-xl border border-[#1b1340]/20 font-medium text-sm text-[#1b1340] focus:outline-none focus:border-[#1b1340]"
+              ></textarea>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div>
+                <label class="block text-xs font-extrabold tracking-wider text-[#1b1340]/70 mb-2">Funding Target (NEAR)</label>
+                <input
+                  id="launch-target"
+                  type="number"
+                  min="0.1"
+                  max="50000"
+                  step="any"
+                  placeholder="e.g., 100"
+                  oninput="updateLaunchPreview()"
+                  required
+                  class="w-full px-4 py-3 rounded-xl border border-[#1b1340]/20 font-extrabold text-[#1b1340] focus:outline-none focus:border-[#1b1340]"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-extrabold tracking-wider text-[#1b1340]/70 mb-2">Gold Cushion Ratio (%)</label>
+                <select
+                  id="launch-cushion-pct"
+                  onchange="updateLaunchPreview()"
+                  class="w-full px-4 py-3 rounded-xl border border-[#ffb703] bg-[#fff6db]/60 font-extrabold text-[#1b1340] focus:outline-none"
+                >
+                  <option value="5">5% Gold Cushion</option>
+                  <option value="10" selected>10% Gold Cushion (Recommended)</option>
+                  <option value="15">15% Gold Cushion (High Yield)</option>
+                  <option value="20">20% Gold Cushion (Max Assurance)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Preview Box -->
+          <div class="lg:col-span-5 bg-[#f8f7fc] rounded-2xl p-6 border border-[#1b1340]/10 flex flex-col justify-between space-y-6">
+            <div class="space-y-4">
+              <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#fff6db] border border-[#ffb703] text-xs font-extrabold text-[#1b1340]">
+                On-chain Contract Preview
+              </div>
+              <h3 class="text-xl font-extrabold text-[#1b1340]">Backer Safety Guarantee</h3>
+              <p class="text-xs text-[#1b1340]/70 leading-relaxed">
+                To publish this campaign, your connected wallet (<strong id="launch-wallet-label" class="text-[#1b1340]">not connected</strong>) deposits the Gold Cushion upfront.
+              </p>
+
+              <div class="bg-white rounded-xl p-4 border border-[#1b1340]/10 space-y-3 text-sm">
+                <div class="flex justify-between">
+                  <span class="text-[#1b1340]/70 font-medium">Target Line:</span>
+                  <span id="preview-target-val" class="font-extrabold text-[#1b1340]">2,500 NEAR</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-[#1b1340]/70 font-medium">Required Gold Cushion Deposit:</span>
+                  <span id="preview-cushion-val" class="font-extrabold text-[#1b1340] bg-[#ffb703]/40 px-2 py-0.5 rounded">250 NEAR</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-[#1b1340]/70 font-medium">Min Backer Bonus (at 99% miss):</span>
+                  <span id="preview-min-apr" class="font-bold text-[#1b1340]">+10.1% instant bonus</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-[#1b1340]/70 font-medium">Backer Bonus (at 50% miss):</span>
+                  <span id="preview-mid-apr" class="font-bold text-[#1b1340]">+20.0% instant bonus</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <button
+                type="submit"
+                class="w-full py-3.5 px-5 rounded-xl bg-[#1b1340] text-white font-extrabold text-sm hover:bg-[#2c2063] transition shadow-sm flex items-center justify-center gap-2"
+              >
+                <span>Lock Gold Cushion &amp; Publish Campaign</span>
+              </button>
+              <p class="text-[11px] text-center text-[#1b1340]/70 font-medium">
+                100% of your Gold Cushion returns to you automatically when your campaign reaches 100% of its target.
+              </p>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- VIEW 3: MY BACKINGS & SOFT-FALL CLAIMS -->
+    <section id="view-backings" class="hidden space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <span class="text-xs font-extrabold tracking-wider text-[#1b1340]/70">Backer Portfolio · <span id="portfolio-wallet-label">not connected</span></span>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-[#1b1340]">My Backings &amp; Soft-Fall Claims</h2>
+        </div>
+        <button
+          onclick="switchMainTab('explore')"
+          class="px-4 py-2 rounded-xl text-xs font-extrabold bg-white border border-[#1b1340]/15 text-[#1b1340] hover:bg-[#f4f2f9] transition"
+        >
+          ← Back More Campaigns
+        </button>
+      </div>
+
+      <!-- Portfolio Summary Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white p-5 rounded-2xl border border-[#1b1340]/10">
+          <span class="text-xs font-bold text-[#1b1340]/70">Active Principal</span>
+          <p id="portfolio-total-pledged" class="text-2xl font-extrabold text-[#1b1340] mt-1">—</p>
+          <span class="text-xs text-[#1b1340]/70 font-medium">Rule: principal returned if the target is missed</span>
+        </div>
+        <div class="bg-[#fff6db] p-5 rounded-2xl border border-[#ffb703]">
+          <span class="text-xs font-bold text-[#1b1340]/75">Projected Soft-Fall Bonus</span>
+          <p id="portfolio-projected-bonus" class="text-2xl font-extrabold text-[#1b1340] mt-1">—</p>
+          <span class="text-xs text-[#1b1340]/75 font-medium">From creator Gold Cushion pools</span>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-[#1b1340]/10">
+          <span class="text-xs font-bold text-[#1b1340]/70">Total Claimed Soft-Fall Payouts</span>
+          <p id="portfolio-total-claimed" class="text-2xl font-extrabold text-[#1b1340] mt-1">—</p>
+          <span class="text-xs text-[#1b1340]/70 font-medium">Principal + Gold Cushion coins</span>
+        </div>
+      </div>
+
+      <!-- Backings Table / List -->
+      <div id="my-backings-list" class="space-y-4">
+        <!-- Populated dynamically by JS -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- INTERACTIVE BACK CAMPAIGN MODAL -->
+  <div
+    id="backing-modal-backdrop"
+    class="fixed inset-0 z-50 bg-[#1b1340]/60 backdrop-blur-xs hidden items-center justify-center p-4"
+  >
+    <div class="bg-white rounded-3xl max-w-lg w-full border border-[#1b1340]/15 shadow-2xl overflow-hidden animate-fadeIn">
+      <div class="p-6 border-b border-[#1b1340]/10 flex items-center justify-between bg-[#f8f7fc]">
+        <div>
+          <span class="text-[11px] font-extrabold tracking-wider text-[#1b1340]/70">Back with Soft-Fall Assurance</span>
+          <h3 id="modal-campaign-title" class="text-xl font-extrabold text-[#1b1340] mt-0.5">Campaign Name</h3>
+          <div id="modal-deadline" class="mt-2"></div>
+        </div>
+        <button
+          onclick="closeBackingModal()"
+          class="w-8 h-8 rounded-full bg-white border border-[#1b1340]/15 text-[#1b1340] font-bold hover:bg-[#f4f2f9] flex items-center justify-center"
+          aria-label="Close modal"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="p-6 space-y-5">
+        <!-- Campaign Current Status Bar -->
+        <div class="bg-[#f8f7fc] p-4 rounded-2xl border border-[#1b1340]/10 space-y-2 text-xs">
+          <div class="flex justify-between font-bold text-[#1b1340]">
+            <span id="modal-raised-label">1,950 / 3,000 NEAR Raised</span>
+            <span id="modal-cushion-label" class="text-[#1b1340] bg-[#ffb703] px-2 py-0.5 rounded-md">300 NEAR Gold Cushion</span>
+          </div>
+          <div class="w-full h-2.5 bg-[#e2ddf0] rounded-full overflow-hidden">
+            <div id="modal-progress-bar" class="h-full bg-[#1b1340] rounded-full transition-all duration-300" style="width: 65%"></div>
+          </div>
+        </div>
+
+        <!-- Pledge Input -->
+        <div>
+          <div class="flex justify-between text-xs font-bold mb-2">
+            <label for="modal-pledge-input" class="tracking-wider text-[#1b1340]/70">Your Pledge Amount (NEAR)</label>
+            <span class="text-[#1b1340]/70">Available: <strong id="modal-wallet-avail" class="text-[#1b1340]">—</strong></span>
+          </div>
+          <div class="relative flex items-center">
+            <input
+              id="modal-pledge-input"
+              type="number"
+              min="0.1"
+              max="5000"
+              step="any"
+              value="1"
+              oninput="updateModalPledgeMath()"
+              class="w-full px-4 py-3.5 rounded-xl border-2 border-[#1b1340] font-extrabold text-lg text-[#1b1340] focus:outline-none"
+            />
+            <div class="absolute right-2 flex items-center gap-1.5">
+              <button type="button" onclick="setModalQuickPledge(1)" class="px-2 py-1 text-xs font-bold bg-[#f4f2f9] text-[#1b1340] rounded-lg hover:bg-[#e2ddf0]">1</button>
+              <button type="button" onclick="setModalQuickPledge(5)" class="px-2 py-1 text-xs font-bold bg-[#f4f2f9] text-[#1b1340] rounded-lg hover:bg-[#e2ddf0]">5</button>
+              <button type="button" onclick="setModalQuickPledge(10)" class="px-2 py-1 text-xs font-bold bg-[#f4f2f9] text-[#1b1340] rounded-lg hover:bg-[#e2ddf0]">10</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dual Outcome Guarantee Box -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div class="p-3.5 rounded-xl bg-[#f4f2f9] border border-[#1b1340]/15 space-y-1">
+            <span class="font-extrabold text-[10px] tracking-wider text-[#1b1340]/70">If Funded (≥ 100%)</span>
+            <p class="font-extrabold text-sm text-[#1b1340]">Project Rewards</p>
+            <p class="text-[#1b1340]/70">Your <span id="modal-if-funded-pledge" class="font-bold text-[#1b1340]">150 NEAR</span> unlocks creator delivery.</p>
+          </div>
+          <div class="p-3.5 rounded-xl bg-[#fff6db] border border-[#ffb703] space-y-1">
+            <span class="font-extrabold text-[10px] tracking-wider text-[#1b1340]">If Missed (&lt; 100% Soft Fall)</span>
+            <p id="modal-if-missed-total" class="font-extrabold text-sm text-[#1b1340]">171.43 NEAR Back</p>
+            <p class="text-[#1b1340]/80">100% principal + <strong id="modal-if-missed-bonus" class="underline decoration-[#1b1340]">+21.43 NEAR</strong> Gold Cushion coin.</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 pt-2">
+          <button
+            type="button"
+            onclick="closeBackingModal()"
+            class="w-1/3 py-3.5 rounded-xl font-bold text-sm text-[#1b1340] bg-[#f4f2f9] hover:bg-[#e2ddf0] transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            id="modal-confirm-btn" onclick="confirmBackCampaign()"
+            class="w-2/3 py-3.5 rounded-xl font-extrabold text-sm bg-[#1b1340] text-white hover:bg-[#2c2063] transition shadow-sm"
+          >
+            Confirm Pledge on NEAR
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NON-BLOCKING TOAST NOTIFICATION CONTAINER -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none"></div>
+
+  <!-- STRICT FOOTER REQUIREMENT (Text only, strictly NO NEAR logo, no extra mascot) -->
+  <footer class="mt-16 border-t border-[#1b1340]/10 bg-white text-center py-6 px-4 text-xs sm:text-[13px] font-medium text-[#1b1340]">
+    Ukemi · Built for the NEAR Hackathon
+  </footer>
+
+  <!-- APPLICATION LOGIC -->
+  <script>
+    // --- APPLICATION STATE ---
+    const state = {
+      walletConnected: false,
+      walletAddress: 'ukemi-backer.testnet',
+      nearBalance: 0,
+      totalClaimed: 0.00,
+      activeTab: 'explore',
+      campaignFilter: 'all',
+      showEmpty: false,
+      selectedCampaignId: null,
+      campaigns: [],
+      myBackings: []
+    };
+
+    // --- FORMATTING HELPERS ---
+    function fmtNear(num) {
+      return Number(num).toLocaleString('en-US', {
+        minimumFractionDigits: num % 1 === 0 ? 0 : 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+    function esc(v) {
+      return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
+
+    const EXPLORER = 'https://testnet.nearblocks.io';
+    function txLinkHtml(hash) {
+      const h = encodeURIComponent(hash);
+      return `<a href="${EXPLORER}/txns/${h}" target="_blank" rel="noopener" class="inline-block mt-1.5 text-xs font-extrabold underline decoration-[#ffb703] decoration-2 underline-offset-2">View transaction ↗</a>`;
+    }
+
+    function showToast(title, message, type = 'gold') {
+      const tx = String(message).match(/^([\s\S]*?)\s*Tx: (\S+)$/);
+      if (tx) message = tx[1];
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const borderClass = type === 'gold' ? 'border-[#ffb703] bg-[#fff6db]' : 'border-[#1b1340] bg-white';
+      toast.className = `pointer-events-auto p-4 rounded-2xl border-2 ${borderClass} shadow-xl text-[#1b1340] transition-all duration-300 flex items-start justify-between gap-3`;
+      toast.innerHTML = `
+        <div>
+          <p class="text-xs font-extrabold tracking-wider text-[#1b1340]">${esc(title)}</p>
+          <p class="text-xs font-medium text-[#1b1340]/85 mt-1 leading-relaxed">${esc(message)}</p>${tx ? txLinkHtml(tx[2]) : ''}
+        </div>
+        <button onclick="this.parentElement.remove()" class="text-xs font-bold text-[#1b1340]/70 hover:text-[#1b1340]">✕</button>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => {
+        if (toast.parentElement) toast.remove();
+      }, tx ? 20000 : 5000);
+    }
+
+    // --- WALLET CONTROLS ---
+    function renderWalletHeader() {
+      const who = state.walletConnected ? state.walletAddress : 'not connected';
+      ['launch-wallet-label', 'portfolio-wallet-label'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = who;
+      });
+      const balanceEl = document.getElementById('user-near-balance');
+      const accountLabel = document.getElementById('wallet-account-label');
+      const dot = document.getElementById('wallet-status-dot');
+      if (!state.walletConnected) toggleWalletMenu(false);
+      const backingsCount = document.getElementById('nav-backings-count');
+
+      balanceEl.textContent = state.walletConnected ? `${fmtNear(state.nearBalance)} NEAR` : '—';
+      const pill = document.getElementById('wallet-balance-pill');
+      pill.classList.toggle('hidden', !state.walletConnected);
+      pill.classList.toggle('flex', state.walletConnected);
+
+      if (state.walletConnected) {
+        accountLabel.textContent = state.walletAddress + ' ▾';
+        dot.className = 'w-2 h-2 rounded-full bg-[#ffb703]';
+      } else {
+        accountLabel.textContent = 'Connect Wallet';
+        dot.className = 'w-2 h-2 rounded-full bg-white/40';
+      }
+
+      const openCount = state.myBackings.filter(isOpenBacking).length;
+      backingsCount.textContent = openCount;
+      backingsCount.classList.toggle('hidden', openCount === 0);
+    }
+
+    // A backing needs attention while its campaign is still running (principal at stake)
+    // or has missed and is not yet claimed. Funded campaigns are done: nothing to claim.
+    function isOpenBacking(b) {
+      const c = state.campaigns.find(x => x.id === b.campaignId);
+      return !!c && !b.claimed && (c.status === 'active' || c.status === 'missed');
+    }
+
+    // --- BROWSER HISTORY ---
+    // Tabs and the Back modal get their own #hash entries, so the browser's Back/Forward
+    // buttons move inside the app instead of leaving the page.
+    const TABS = ['explore', 'simulator', 'launch', 'backings'];
+
+    function routeFromHash() { return location.hash.replace(/^#/, ''); }
+
+    function navPush(route) {
+      if ((routeFromHash() || 'explore') === route) return;
+      try { history.pushState({ route }, '', '#' + route); } catch (e) {}
+    }
+
+    window.addEventListener('popstate', () => {
+      const route = routeFromHash();
+      const m = route.match(/^back-(\d+)$/);
+      if (m) {
+        if (state.campaigns.some(c => c.id === m[1])) openBackingModal(m[1], true);
+        return;
+      }
+      hideBackingModal();
+      const tab = TABS.includes(route) ? route : 'explore';
+      if (tab !== state.activeTab) switchMainTab(tab, true);
+    });
+
+    // --- NAVIGATION TABS ---
+    function switchMainTab(tabName, fromHistory) {
+      if (!fromHistory) navPush(tabName);
+      state.activeTab = tabName;
+      const views = {
+        explore: document.getElementById('view-explore'),
+        launch: document.getElementById('view-launch'),
+        backings: document.getElementById('view-backings')
+      };
+      const heroSection = document.getElementById('hero-and-outcomes');
+
+      // Reset tab buttons
+      ['explore', 'simulator', 'launch', 'backings'].forEach(t => {
+        const btn = document.getElementById(`nav-tab-${t}`);
+        if (t === tabName) {
+          btn.className = 'px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all bg-[#1b1340] text-white inline-flex items-center justify-center gap-1.5 whitespace-nowrap sm:px-5';
+        } else {
+          btn.className = 'px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all text-[#1b1340]/80 hover:bg-[#f4f2f9] hover:text-[#1b1340] inline-flex items-center justify-center gap-1.5 whitespace-nowrap sm:px-5';
+        }
+      });
+
+      if (tabName === 'explore') {
+        heroSection.classList.remove('hidden');
+        views.explore.classList.remove('hidden');
+        views.launch.classList.add('hidden');
+        views.backings.classList.add('hidden');
+      } else if (tabName === 'simulator') {
+        heroSection.classList.remove('hidden');
+        views.explore.classList.remove('hidden');
+        views.launch.classList.add('hidden');
+        views.backings.classList.add('hidden');
+        // Land on the simulator itself (not the hero text), just below the sticky header
+        const header = document.querySelector('header');
+        const target = document.getElementById('simulator-section');
+        const top = target.getBoundingClientRect().top + window.scrollY - (header ? header.offsetHeight : 0);
+        window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      } else if (tabName === 'launch') {
+        heroSection.classList.add('hidden');
+        views.explore.classList.add('hidden');
+        views.launch.classList.remove('hidden');
+        views.backings.classList.add('hidden');
+        updateLaunchPreview();
+      } else if (tabName === 'backings') {
+        heroSection.classList.add('hidden');
+        views.explore.classList.add('hidden');
+        views.launch.classList.add('hidden');
+        views.backings.classList.remove('hidden');
+        renderMyBackings();
+      }
+    }
+
+    // --- OUTCOME SIMULATOR & DUAL PANELS LOGIC ---
+    function syncSimulatorFromInput() {
+      const inputVal = Math.max(5, Math.min(20, Number(document.getElementById('sim-pledge-input').value) || 5));
+      document.getElementById('sim-pledge-slider').value = inputVal;
+      updateSimulator();
+    }
+
+    function syncSimulatorFromSlider() {
+      const sliderVal = Number(document.getElementById('sim-pledge-slider').value);
+      document.getElementById('sim-pledge-input').value = sliderVal;
+      updateSimulator();
+    }
+
+    function setSimulatorPreset(pct) {
+      document.getElementById('sim-funding-slider').value = pct;
+      updateSimulator();
+    }
+
+    function updateSimulator() {
+      const pledge = Math.min(20, Math.max(5, Number(document.getElementById('sim-pledge-input').value) || 10));
+      const fundingPct = Number(document.getElementById('sim-funding-slider').value);
+      const target = Number(document.getElementById('sim-target-select').value);
+      const cushionPct = Number(document.getElementById('sim-cushion-select').value);
+      const cushion = target * cushionPct / 100; // cushion mengikuti target, jadi label persen selalu benar
+      document.querySelectorAll('#sim-cushion-select option').forEach(o => { o.textContent = `${fmtNear(target * Number(o.value) / 100)} NEAR (${o.value}%)`; });
+
+      // Total raised in simulation (ensuring at least the user's pledge is in the pool)
+      const simulatedTotalRaised = Math.max(pledge, (fundingPct / 100) * target);
+      const userShare = pledge / simulatedTotalRaised;
+      const bonusNear = userShare * cushion;
+      const bonusPct = (bonusNear / pledge) * 100;
+      const totalSoftFallPayout = pledge + bonusNear;
+
+      // Update inline formula summary
+      document.getElementById('sim-share-pct').textContent = `${(userShare * 100).toFixed(2)}%`;
+      document.getElementById('sim-cushion-label').textContent = `${fmtNear(cushion)} NEAR`;
+      document.getElementById('sim-bonus-inline').textContent = `+${fmtNear(bonusNear)} NEAR Bonus`;
+
+      // Update Panel A (Funded) numbers
+      document.getElementById('funded-panel-pledge').textContent = `${fmtNear(pledge)} NEAR`;
+      document.getElementById('funded-panel-cushion-return').textContent = `${fmtNear(cushion)} NEAR returned`;
+
+      // Update Panel B (Missed) numbers
+      document.getElementById('missed-panel-principal').textContent = `${fmtNear(pledge)} NEAR`;
+      document.getElementById('missed-panel-bonus').textContent = `+${fmtNear(bonusNear)} NEAR (+${bonusPct.toFixed(1)}%)`;
+      document.getElementById('missed-panel-total').textContent = `${fmtNear(totalSoftFallPayout)} NEAR`;
+
+      // Highlight the corresponding Outcome Panel based on whether fundingPct >= 100
+      const fundedCard = document.getElementById('outcome-card-funded');
+      const missedCard = document.getElementById('outcome-card-missed');
+      const fundingBadge = document.getElementById('sim-funding-badge');
+      const badgeFunded = document.getElementById('badge-state-funded');
+      const badgeMissed = document.getElementById('badge-state-missed');
+
+      if (fundingPct >= 100) {
+        fundingBadge.textContent = `${fundingPct}% of Target (Funded!)`;
+        fundingBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-[#1b1340] text-white';
+
+        fundedCard.classList.add('outcome-panel-active-funded');
+        fundedCard.classList.remove('outcome-panel-inactive');
+        missedCard.classList.remove('outcome-panel-active-missed');
+        missedCard.classList.add('outcome-panel-inactive');
+
+        badgeFunded.textContent = `Active Simulation · ${fundingPct}%`;
+        badgeFunded.className = 'inline-block px-2.5 py-1 rounded-full text-[11px] font-extrabold tracking-wider bg-[#1b1340] text-white';
+        badgeMissed.textContent = 'Target < 100%';
+        badgeMissed.className = 'inline-block px-2.5 py-1 rounded-full text-[11px] font-extrabold tracking-wider bg-[#fff6db] text-[#1b1340]';
+      } else {
+        fundingBadge.textContent = `${fundingPct}% of Target (Missed — Soft Fall)`;
+        fundingBadge.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-[#fff6db] text-[#1b1340] border border-[#ffb703]';
+
+        missedCard.classList.add('outcome-panel-active-missed');
+        missedCard.classList.remove('outcome-panel-inactive');
+        fundedCard.classList.remove('outcome-panel-active-funded');
+        fundedCard.classList.add('outcome-panel-inactive');
+
+        badgeMissed.textContent = `Active Simulation · ${fundingPct}%`;
+        badgeMissed.className = 'inline-block px-2.5 py-1 rounded-full text-[11px] font-extrabold tracking-wider bg-[#ffb703] text-[#1b1340]';
+        badgeFunded.textContent = 'Target ≥ 100%';
+        badgeFunded.className = 'inline-block px-2.5 py-1 rounded-full text-[11px] font-extrabold tracking-wider bg-[#f4f2f9] text-[#1b1340]';
+      }
+    }
+
+    // --- CAMPAIGN EXPLORER & DEADLINE SIMULATION ---
+    function filterCampaigns(filter) {
+      state.campaignFilter = filter;
+      ['all', 'active', 'funded', 'missed'].forEach(f => {
+        const btn = document.getElementById(`filter-btn-${f}`);
+        if (f === filter) {
+          btn.className = 'px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-[#1b1340] text-white transition inline-flex items-center gap-1.5';
+        } else {
+          btn.className = 'px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white text-[#1b1340] border border-[#1b1340]/15 hover:bg-[#f4f2f9] transition inline-flex items-center gap-1.5';
+        }
+      });
+      renderCampaigns();
+    }
+
+    function toggleEmptyCampaigns() { state.showEmpty = !state.showEmpty; renderCampaigns(); }
+
+    function renderCampaigns() {
+      const grid = document.getElementById('campaigns-grid');
+      // Live campaigns first (newest on top). Everything finished follows in plain number order (#0, #1, #2...). Finished campaigns nobody backed are hidden unless the creator still has a cushion to withdraw.
+      const rank = c => c.status === 'active' ? (c.ended ? 1 : 0) : 2;
+      const byOrder = (a, b) => rank(a) - rank(b) || (rank(a) < 2 ? Number(b.id) - Number(a.id) : Number(a.id) - Number(b.id));
+      const isEmptyDone = c => c.status === 'missed' && !c.backers && !canWithdraw(c);
+      const byFilter = state.campaigns.filter(c => state.campaignFilter === 'all' || c.status === state.campaignFilter);
+      const hiddenCount = byFilter.filter(isEmptyDone).length;
+      const filtered = byFilter.filter(c => state.showEmpty || !isEmptyDone(c)).sort(byOrder);
+      const note = document.getElementById('campaign-hidden-note');
+      if (note) {
+        note.classList.toggle('hidden', hiddenCount === 0);
+        note.innerHTML = (state.showEmpty ? `Showing ${hiddenCount} finished campaign${hiddenCount === 1 ? '' : 's'} with no backers.` : `${hiddenCount} finished campaign${hiddenCount === 1 ? '' : 's'} with no backers hidden.`) +
+          ` <button type="button" onclick="toggleEmptyCampaigns()" class="font-extrabold underline decoration-[#ffb703] decoration-2 underline-offset-2">${state.showEmpty ? 'Hide them' : 'Show them'}</button>`;
+      }
+      if (!filtered.length) {
+        grid.innerHTML = '<p class="col-span-full text-sm font-bold text-[#1b1340]/70">No campaigns to show in this view yet.</p>';
+        return;
+      }
+
+      grid.innerHTML = filtered.map(c => {
+        const pct = Math.round((c.raised / c.target) * 100);
+        const barWidth = Math.min(100, pct);
+        // With pledges: cushion shared over what is raised. With none yet: cushion over target (the floor for the first backer).
+        const bonusBase = c.raised > 0 ? c.raised : c.target;
+        const currentSoftFallBonusPct = bonusBase > 0 ? ((c.cushion / bonusBase) * 100).toFixed(1) : '0.0';
+        // The "if missed" yield only means something while the campaign can still miss or has missed with backers.
+        let yieldLabel = 'If Missed Yield';
+        let yieldValue = `+${currentSoftFallBonusPct}% Bonus`;
+        if (c.status === 'funded') {
+          yieldLabel = 'Outcome';
+          yieldValue = 'Cushion returned';
+        } else if (c.status === 'missed' && c.raised === 0) {
+          yieldLabel = 'Outcome';
+          yieldValue = 'No backers';
+        }
+        const userBacking = state.myBackings.find(b => b.campaignId === c.id && !b.claimed);
+
+        let statusBadge = '';
+        let progressColor = 'bg-[#1b1340]';
+        if (c.status === 'active') {
+          statusBadge = c.ended
+            ? `<span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-[#fff6db] text-[#1b1340] border border-[#ffb703]">Ended · awaiting finalize</span>`
+            : countdownBadgeHtml(c);
+        } else if (c.status === 'funded') {
+          statusBadge = `<span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-[#1b1340] text-white">✓ Target Met · Funded</span>`;
+        } else if (c.status === 'missed') {
+          statusBadge = c.backers
+            ? `<span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-[#ffb703] text-[#1b1340]">Soft-Fall Activated</span>`
+            : `<span class="px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-[#f4f2f9] text-[#1b1340]">Missed · No backers</span>`;
+          progressColor = 'bg-[#ffb703]';
+        }
+
+        return `
+          <article class="bg-white rounded-3xl border ${c.status === 'missed' && c.backers ? 'border-2 border-[#ffb703]' : 'border-[#1b1340]/10'} shadow-xs hover:shadow-md transition flex flex-col justify-between overflow-hidden${justEnded.has(c.id) ? ' card-just-ended' : ''}">
+            <div class="p-6 space-y-4">
+              <!-- Top Meta Row -->
+              <div class="flex items-center justify-between gap-2">
+                <a href="${EXPLORER}/address/${CONTRACT_ID}" target="_blank" rel="noopener" title="View contract ${CONTRACT_ID} on NearBlocks" class="text-[11px] font-extrabold tracking-wider text-[#1b1340]/70 hover:text-[#1b1340] hover:underline decoration-[#ffb703] decoration-2 underline-offset-2">${esc(c.category)} · #${esc(c.id)} ↗</a>
+                ${statusBadge}
+              </div>
+
+              <!-- Title & Creator -->
+              <div>
+                <h3 class="text-lg font-extrabold text-[#1b1340] leading-snug">${esc(c.title)}</h3>
+                <p class="text-xs font-bold text-[#1b1340]/70 mt-1">by <span class="text-[#1b1340]">${esc(c.creator)}</span></p>
+                <p class="text-xs sm:text-sm text-[#1b1340]/75 mt-2.5 line-clamp-2 leading-relaxed font-medium">${esc(c.description)}</p>
+              </div>
+
+              <!-- Gold Cushion Highlight Box -->
+              <div class="bg-[#fff6db] border border-[#ffb703]/80 rounded-2xl p-3.5 flex items-center justify-between">
+                <div>
+                  <span class="block text-[10px] font-extrabold tracking-wider text-[#1b1340]/70">Gold Cushion</span>
+                  <span class="text-sm font-extrabold text-[#1b1340]">${fmtNear(c.cushion)} NEAR Bonus Pool</span>
+                </div>
+                <div class="text-right">
+                  <span class="block text-[10px] font-extrabold tracking-wider text-[#1b1340]/70">${yieldLabel}</span>
+                  <span class="text-sm font-extrabold text-[#1b1340] bg-white px-2 py-0.5 rounded-lg border border-[#ffb703]">${yieldValue}</span>
+                </div>
+              </div>
+
+              <!-- Progress Bar & Target Line -->
+              <div class="space-y-1.5 pt-1">
+                <div class="flex justify-between text-xs font-bold">
+                  <span class="text-[#1b1340]">${fmtNear(c.raised)} NEAR <span class="text-[#1b1340]/70 font-medium">of ${fmtNear(c.target)} target</span></span>
+                  <span class="font-extrabold text-[#1b1340]">${pct}%</span>
+                </div>
+                <div class="w-full h-2.5 bg-[#f4f2f9] rounded-full overflow-hidden">
+                  <div class="h-full ${progressColor} rounded-full transition-all duration-300" style="width: ${barWidth}%"></div>
+                </div>
+                <div class="flex justify-between text-[11px] font-semibold text-[#1b1340]/70">
+                  <span>${c.backers} ${c.backers === 1 ? 'backer' : 'backers'}</span>
+                  <span>${userBacking ? `Your pledge: ${fmtNear(userBacking.pledged)} NEAR` : c.status === 'funded' ? 'Funds go to the creator' : '100% Principal Assured'}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card Footer Actions & Deadline Resolution Simulator -->
+            <div class="p-6 pt-0 space-y-3">
+              ${
+                canWithdraw(c)
+                  ? `<button onclick="withdrawCampaign('${c.id}')" class="w-full py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm bg-[#ffb703] text-[#1b1340] hover:brightness-95 transition shadow-xs">Withdraw ${fmtNear(withdrawAmount(c))} NEAR</button>`
+                  : c.status === 'active' && c.ended
+                  ? finalizeButtonHtml(c, 'w-full py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm', 'bg-[#1b1340] text-white hover:bg-[#2c2063] transition shadow-xs', 'Finalize campaign')
+                  : c.status === 'active'
+                  ? `<button onclick="openBackingModal('${c.id}')" class="w-full py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm bg-[#1b1340] text-white hover:bg-[#2c2063] transition shadow-xs">
+                      Back Campaign (Soft-Fall Assured)
+                    </button>`
+                  : c.status === 'missed' && c.withdrawn && !c.backers
+                  ? `<button disabled class="w-full py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm bg-[#f4f2f9] text-[#1b1340]/70 cursor-not-allowed">Cushion withdrawn</button>`
+                  : c.status === 'missed' && !c.backers
+                  ? `<button disabled class="w-full py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm bg-[#f4f2f9] text-[#1b1340]/70 cursor-not-allowed">No backers · nothing to claim</button>`
+                  : c.status === 'missed'
+                  ? `<button onclick="switchMainTab('backings')" class="w-full py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm bg-[#ffb703] text-[#1b1340] hover:brightness-95 transition shadow-xs">
+                      ${userBacking ? `Claim ${fmtNear(userBacking.pledged + (userBacking.pledged / c.raised) * c.cushion)} NEAR Soft-Fall Payout` : 'Inspect Soft-Fall Payouts'}
+                    </button>`
+                  : `<button disabled class="w-full py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm bg-[#f4f2f9] text-[#1b1340]/70 cursor-not-allowed">
+                      ${c.withdrawn ? 'Funded · Creator withdrawn' : 'Target Reached · Funded'}
+                    </button>`
+              }
+
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    const FINALIZE_GRACE_MS = 5000; // chain time can trail the browser clock slightly
+    function finalizeButtonHtml(c, sizeCls, onCls, label) {
+      const at = c.deadlineMs + FINALIZE_GRACE_MS;
+      if (Date.now() < at) {
+        return `<button disabled data-finalize-at="${at}" class="${sizeCls} bg-[#f4f2f9] text-[#1b1340]/70 cursor-not-allowed">Finalize in ${Math.ceil((at - Date.now()) / 1000)}s</button>`;
+      }
+      return `<button onclick="finalizeCampaign('${c.id}')" class="${sizeCls} ${onCls}">${label}</button>`;
+    }
+
+    async function finalizeCampaign(id) {
+      const fc = state.campaigns.find(x => x.id === String(id));
+      if (fc && Date.now() < fc.deadlineMs + FINALIZE_GRACE_MS) { showToast('Almost there', 'Wait a few seconds so the chain clock passes the deadline.', 'indigo'); return; }
+      const r = await sendTx('finalize', { campaign_id: Number(id) });
+      if (!r) return;
+      showToast('Finalize sent', 'The outcome is now decided on-chain.' + txNote(r));
+      await afterTx();
+    }
+
+    async function withdrawCampaign(id) {
+      const r = await sendTx('withdraw', { campaign_id: Number(id) });
+      if (!r) return;
+      showToast('Withdraw sent', 'Funds are on their way to your wallet.' + txNote(r));
+      await afterTx();
+    }
+
+    // --- BACKING MODAL LOGIC ---
+    function openBackingModal(campaignId, fromHistory) {
+      const camp = state.campaigns.find(c => c.id === campaignId);
+      if (!camp) return;
+      state.selectedCampaignId = campaignId;
+
+      document.getElementById('modal-campaign-title').textContent = camp.title;
+      document.getElementById('modal-wallet-avail').textContent = `${fmtNear(state.nearBalance)} NEAR`;
+      document.getElementById('modal-pledge-input').value = 1;
+
+      updateModalPledgeMath();
+      const dl = document.getElementById('modal-deadline');
+      delete dl.dataset.over;
+      dl.innerHTML = countdownBadgeHtml(camp);
+      refreshModalDeadline();
+
+      const backdrop = document.getElementById('backing-modal-backdrop');
+      backdrop.classList.remove('hidden');
+      backdrop.classList.add('flex');
+      if (!fromHistory) navPush('back-' + campaignId);
+    }
+
+    function refreshModalDeadline() {
+      const camp = state.campaigns.find(c => c.id === state.selectedCampaignId);
+      const btn = document.getElementById('modal-confirm-btn');
+      const box = document.getElementById('modal-deadline');
+      if (!camp || !btn || !box) return;
+      const over = camp.deadlineMs - Date.now() <= 0;
+      btn.disabled = over;
+      btn.classList.toggle('opacity-50', over);
+      btn.classList.toggle('cursor-not-allowed', over);
+      btn.textContent = over ? 'Deadline passed' : 'Confirm Pledge on NEAR';
+      if (over && !box.dataset.over) {
+        box.dataset.over = '1';
+        box.innerHTML = '<span class="inline-flex px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-[#fff6db] text-[#1b1340] border border-[#ffb703]">Deadline passed · pledges closed</span>';
+      }
+    }
+
+    function hideBackingModal() {
+      const backdrop = document.getElementById('backing-modal-backdrop');
+      backdrop.classList.add('hidden');
+      backdrop.classList.remove('flex');
+      state.selectedCampaignId = null;
+    }
+
+    function closeBackingModal() {
+      hideBackingModal();
+      // Drop the modal's history entry so the browser Back button doesn't reopen it.
+      if (/^#back-/.test(location.hash)) history.back();
+    }
+
+    function setModalQuickPledge(amount) {
+      document.getElementById('modal-pledge-input').value = amount;
+      updateModalPledgeMath();
+    }
+
+    function updateModalPledgeMath() {
+      const camp = state.campaigns.find(c => c.id === state.selectedCampaignId);
+      if (!camp) return;
+
+      const pledge = Math.max(0.1, Number(document.getElementById('modal-pledge-input').value) || 0);
+      const newRaised = camp.raised + pledge;
+      const pct = Math.min(100, Math.round((newRaised / camp.target) * 100));
+
+      document.getElementById('modal-raised-label').textContent = `${fmtNear(newRaised)} / ${fmtNear(camp.target)} NEAR (with your pledge)`;
+      document.getElementById('modal-cushion-label').textContent = `${fmtNear(camp.cushion)} NEAR Gold Cushion`;
+      document.getElementById('modal-progress-bar').style.width = `${pct}%`;
+
+      // Calculate exact Soft-Fall Bonus if campaign misses with this new raised total
+      const userShare = pledge / newRaised;
+      const bonusCoin = userShare * camp.cushion;
+      const totalSoftFall = pledge + bonusCoin;
+
+      document.getElementById('modal-if-funded-pledge').textContent = `${fmtNear(pledge)} NEAR`;
+      document.getElementById('modal-if-missed-total').textContent = `${fmtNear(totalSoftFall)} NEAR Back`;
+      document.getElementById('modal-if-missed-bonus').textContent = `+${fmtNear(bonusCoin)} NEAR`;
+    }
+
+    async function confirmBackCampaign() {
+      const camp = state.campaigns.find(c => c.id === state.selectedCampaignId);
+      if (!camp) return;
+      if (camp.deadlineMs - Date.now() <= 0) { showToast('Deadline passed', 'This campaign no longer accepts pledges.', 'indigo'); return; }
+      const raw = document.getElementById('modal-pledge-input').value.trim();
+      if (!/^\d+(\.\d+)?$/.test(raw) || Number(raw) <= 0) {
+        showToast('Invalid pledge', 'Enter a NEAR amount above 0.', 'indigo');
+        return;
+      }
+      if (state.walletConnected && camp.creator === state.walletAddress) {
+        showToast('Not allowed', 'A creator cannot back their own campaign.', 'indigo');
+        return;
+      }
+      if (state.walletConnected && Number(raw) > state.nearBalance) {
+        showToast('Insufficient NEAR Balance', 'Your wallet does not hold that much testnet NEAR.', 'indigo');
+        return;
+      }
+      const r = await sendTx('back', { campaign_id: Number(camp.id) }, nearToYocto(raw));
+      if (!r) return;
+      closeBackingModal();
+      showToast('Pledge sent', `You backed “${camp.title}” with ${raw} NEAR.` + txNote(r));
+      await afterTx();
+    }
+
+    // --- MY BACKINGS & CLAIMING SOFT-FALL PAYOUTS ---
+    function renderMyBackings() {
+      const listEl = document.getElementById('my-backings-list');
+      let totalActivePledged = 0;
+      let totalProjectedBonus = 0;
+
+      if (state.myBackings.length === 0) {
+        listEl.innerHTML = state.walletConnected ? `
+          <div class="bg-white rounded-2xl p-8 text-center border border-[#1b1340]/10">
+            <p class="font-bold text-[#1b1340]">You haven't backed any campaigns yet.</p>
+            <button onclick="switchMainTab('explore')" class="mt-3 px-4 py-2 rounded-xl text-xs font-extrabold bg-[#1b1340] text-white">Explore Campaigns</button>
+          </div>
+        ` : `
+          <div class="bg-white rounded-2xl p-8 text-center border border-[#1b1340]/10">
+            <p class="font-bold text-[#1b1340]">Connect your NEAR wallet to see your backings.</p>
+            <button onclick="walletButtonClick()" class="mt-3 px-4 py-2 rounded-xl text-xs font-extrabold bg-[#1b1340] text-white">Connect Wallet</button>
+          </div>
+        `;
+        document.getElementById('portfolio-total-pledged').textContent = '0 NEAR';
+        document.getElementById('portfolio-projected-bonus').textContent = '+0 NEAR';
+        document.getElementById('portfolio-total-claimed').textContent = `${fmtNear(state.totalClaimed)} NEAR`;
+        return;
+      }
+
+      listEl.innerHTML = state.myBackings.map(b => {
+        const camp = state.campaigns.find(c => c.id === b.campaignId);
+        if (!camp) return '';
+
+        const share = camp.raised > 0 ? b.pledged / camp.raised : 0;
+        const bonusNear = share * camp.cushion;
+        const totalPayout = b.pledged + bonusNear;
+
+        if (isOpenBacking(b)) {
+          totalActivePledged += b.pledged;
+          totalProjectedBonus += bonusNear;
+        }
+
+        let actionArea = '';
+        if (b.claimed) {
+          actionArea = `
+            <span class="px-4 py-2.5 rounded-xl text-xs font-extrabold bg-[#f4f2f9] text-[#1b1340]/70 border border-[#1b1340]/10">
+              ✓ Claimed ${fmtNear(totalPayout)} NEAR to Wallet
+            </span>
+          `;
+        } else if (camp.status === 'missed') {
+          actionArea = `
+            <button
+              onclick="claimSoftFallPayout('${b.id}')"
+              class="px-5 py-3 rounded-xl text-xs sm:text-sm font-extrabold bg-[#ffb703] text-[#1b1340] hover:brightness-95 transition shadow-sm"
+            >
+              Claim ${fmtNear(totalPayout)} NEAR (Principal + Bonus Coin)
+            </button>
+          `;
+        } else if (camp.status === 'funded') {
+          actionArea = `
+            <div class="flex items-center gap-2">
+              <span class="px-3.5 py-2 rounded-xl text-xs font-extrabold bg-[#1b1340] text-white">
+                ✓ Target Met · Rewards Unlocked
+              </span>
+            </div>
+          `;
+        } else {
+          actionArea = `
+            <div class="flex items-center gap-2">
+              ${camp.ended
+                ? `<span class="px-3 py-2 rounded-xl text-xs font-bold bg-[#f4f2f9] text-[#1b1340]">Deadline passed · awaiting finalize</span>`
+                : countdownBadgeHtml(camp)}
+              ${camp.ended ? finalizeButtonHtml(camp, 'px-3 py-2 rounded-xl text-xs font-extrabold', 'bg-[#fff6db] text-[#1b1340] border border-[#ffb703] hover:bg-[#ffb703] transition', 'Finalize') : ''}
+            </div>
+          `;
+        }
+
+        return `
+          <div class="bg-white rounded-2xl p-5 sm:p-6 border ${camp.status === 'missed' && !b.claimed ? 'border-2 border-[#ffb703]' : 'border-[#1b1340]/10'} flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div class="space-y-1.5">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-extrabold tracking-wider text-[#1b1340]/70">${esc(camp.category)} · #${esc(camp.id)}</span>
+                <span>·</span>
+                <span class="text-xs font-semibold text-[#1b1340]/70">Pledged ${b.timestamp}</span>
+              </div>
+              <h3 class="text-lg font-extrabold text-[#1b1340]">${esc(camp.title)}</h3>
+              <p class="text-xs text-[#1b1340]/75 font-medium">
+                Deliverable if funded: <strong class="text-[#1b1340]">${esc(camp.rewardLabel)}</strong>
+              </p>
+            </div>
+
+            <div class="flex flex-wrap sm:flex-nowrap items-center gap-4 lg:gap-6 pt-3 lg:pt-0 border-t lg:border-t-0 border-[#1b1340]/10">
+              <div>
+                <span class="block text-[11px] font-bold text-[#1b1340]/70">Your Principal</span>
+                <span class="text-base font-extrabold text-[#1b1340]">${fmtNear(b.pledged)} NEAR</span>
+              </div>
+              ${camp.status === 'funded' ? `
+              <div class="bg-[#f4f2f9] px-3.5 py-2 rounded-xl border border-[#1b1340]/10">
+                <span class="block text-[10px] font-extrabold text-[#1b1340]/70">Soft-Fall Bonus</span>
+                <span class="text-sm font-extrabold text-[#1b1340]">None (target met)</span>
+              </div>` : `
+              <div class="bg-[#fff6db] px-3.5 py-2 rounded-xl border border-[#ffb703]">
+                <span class="block text-[10px] font-extrabold text-[#1b1340]/70">Soft-Fall Bonus Share</span>
+                <span class="text-sm font-extrabold text-[#1b1340]">+${fmtNear(bonusNear)} NEAR (${(share * 100).toFixed(1)}% of cushion)</span>
+              </div>`}
+              <div>
+                ${actionArea}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('portfolio-total-pledged').textContent = `${fmtNear(totalActivePledged)} NEAR`;
+      document.getElementById('portfolio-projected-bonus').textContent = `+${fmtNear(totalProjectedBonus)} NEAR`;
+      document.getElementById('portfolio-total-claimed').textContent = `${fmtNear(state.totalClaimed)} NEAR`;
+    }
+
+    async function claimSoftFallPayout(backingId) {
+      const backing = state.myBackings.find(b => b.id === backingId);
+      if (!backing || backing.claimed) return;
+      const r = await sendTx('claim_refund', { campaign_id: Number(backing.campaignId) });
+      if (!r) return;
+      showToast('Claim sent', 'Principal plus your cushion share are on their way.' + txNote(r));
+      await afterTx();
+    }
+
+    // --- LAUNCH CAMPAIGN STUDIO LOGIC ---
+    function updateLaunchPreview() {
+      const targetRaw = Number(document.getElementById('launch-target').value);
+      if (!(targetRaw > 0)) {
+        ['preview-target-val', 'preview-cushion-val', 'preview-min-apr', 'preview-mid-apr'].forEach(id => {
+          document.getElementById(id).textContent = '—';
+        });
+        return;
+      }
+      const target = Math.max(0.1, targetRaw);
+      const cushionPct = Number(document.getElementById('launch-cushion-pct').value) || 10;
+      const cushionNear = (target * cushionPct) / 100;
+
+      document.getElementById('preview-target-val').textContent = `${fmtNear(target)} NEAR`;
+      document.getElementById('preview-cushion-val').textContent = `${fmtNear(cushionNear)} NEAR`;
+      document.getElementById('preview-min-apr').textContent = `+${(cushionPct / 0.99).toFixed(1)}% instant bonus`;
+      document.getElementById('preview-mid-apr').textContent = `+${(cushionPct * 2).toFixed(1)}% instant bonus`;
+    }
+
+    function setLaunchDuration(minutes) { document.getElementById('launch-days').value = minutes; }
+
+    async function handleLaunchCampaign(e) {
+      e.preventDefault();
+      const title = document.getElementById('launch-title').value.trim();
+      const description = document.getElementById('launch-desc').value.trim();
+      const targetRaw = document.getElementById('launch-target').value.trim();
+      const minutes = Number(document.getElementById('launch-days').value);
+      const pct = BigInt(document.getElementById('launch-cushion-pct').value);
+      if (!title || title.length > 80 || description.length > 500) {
+        showToast('Check details', 'Title is 1 to 80 characters, description up to 500.', 'indigo');
+        return;
+      }
+      if (!/^\d+(\.\d+)?$/.test(targetRaw) || Number(targetRaw) <= 0 || !Number.isInteger(minutes) || minutes < 1 || minutes > 43200) {
+        showToast('Check numbers', 'Target must be above 0 NEAR and duration 1 to 43200 minutes.', 'indigo');
+        return;
+      }
+      const target = BigInt(nearToYocto(targetRaw));
+      const cushion = (target * pct) / 100n;
+      if (cushion <= 0n) { showToast('Cushion too small', 'Raise the target or the cushion ratio.', 'indigo'); return; }
+      const r = await sendTx('create_campaign', { title, description, target: target.toString(), duration_minutes: minutes }, cushion.toString());
+      if (!r) return;
+      switchMainTab('explore');
+      showToast('Campaign sent', `“${title}” is being created with a ${fmtNear(yoctoToNear(cushion.toString()))} NEAR Gold Cushion.` + txNote(r));
+      await afterTx();
+    }
+
+    // --- ON-CHAIN READ LAYER (ukemi.testnet, read-only) ---
+    const CONTRACT_ID = 'ukemi.testnet';
+    const RPC_URLS = [
+      'https://rpc.testnet.fastnear.com',
+      'https://test.rpc.fastnear.com',
+      'https://testnet-rpc.intea.rs',
+      'https://near-testnet.drpc.org',
+      'https://rpc.testnet.near.org'
+    ];
+    function yoctoToNear(v) {
+      return Number(BigInt(v) / 10n ** 18n) / 1e6;
+    }
+
+    async function rpcQuery(params) {
+      let lastErr;
+      for (const url of RPC_URLS) {
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 'ukemi', method: 'query', params })
+          });
+          const json = await res.json();
+          if (json.error) throw new Error(json.error.data || json.error.message);
+          if (json.result && json.result.error) throw new Error(json.result.error);
+          return json.result;
+        } catch (e) { lastErr = e; }
+      }
+      throw lastErr;
+    }
+
+    async function viewCall(method, args = {}) {
+      const r = await rpcQuery({
+        request_type: 'call_function', finality: 'final', account_id: CONTRACT_ID,
+        method_name: method, args_base64: btoa(JSON.stringify(args))
+      });
+      return JSON.parse(new TextDecoder().decode(new Uint8Array(r.result)));
+    }
+
+    async function viewAccountBalance(accountId) {
+      try {
+        const r = await rpcQuery({ request_type: 'view_account', finality: 'final', account_id: accountId });
+        return yoctoToNear(r.amount);
+      } catch (e) { return 0; }
+    }
+
+    function timeLeftLabel(ms) {
+      const m = Math.max(1, Math.ceil(ms / 60000));
+      if (m < 60) return m + 'm left';
+      if (m < 2880) return Math.ceil(m / 60) + 'h left';
+      return Math.ceil(m / 1440) + 'd left';
+    }
+
+    // --- LIVE COUNTDOWN ---
+    // Ticks every second. Under 1 hour it shows mm:ss, above that it shows hours/days.
+    function countdownLabel(ms) {
+      const total = Math.max(0, Math.ceil(ms / 1000));
+      const pad = n => String(n).padStart(2, '0');
+      if (total < 3600) return `${pad(Math.floor(total / 60))}:${pad(total % 60)} left`;
+      if (total < 86400) return `${Math.floor(total / 3600)}h ${Math.floor((total % 3600) / 60)}m left`;
+      return `${Math.floor(total / 86400)}d ${Math.floor((total % 86400) / 3600)}h left`;
+    }
+
+    // Active = solid indigo with a pulsing dot. Final minute = gold, to signal urgency.
+    function countdownBadgeClass(ms) {
+      const base = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-extrabold tabular-nums transition-colors';
+      return ms <= 60000
+        ? `${base} bg-[#ffb703] text-[#1b1340]`
+        : `${base} bg-[#1b1340] text-white`;
+    }
+
+    function countdownBadgeHtml(c) {
+      const left = c.deadlineMs - Date.now();
+      return `<span data-countdown="${c.deadlineMs}" data-cid="${esc(c.id)}" class="${countdownBadgeClass(left)}">
+        <span class="relative flex h-2 w-2" aria-hidden="true">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-60"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-current"></span>
+        </span>
+        <span data-countdown-text>${countdownLabel(left)}</span>
+      </span>`;
+    }
+
+    const justEnded = new Set(); // campaign ids whose deadline passed during this session tick
+
+    function tickCountdowns() {
+      const now = Date.now();
+      let rerender = false;
+      document.querySelectorAll('[data-countdown]').forEach(el => {
+        const left = Number(el.dataset.countdown) - now;
+        if (left <= 0) {
+          const c = state.campaigns.find(x => x.id === el.dataset.cid);
+          if (c && !c.ended) { c.ended = true; rerender = true; justEnded.add(c.id); }
+          return;
+        }
+        el.className = countdownBadgeClass(left);
+        const txt = el.querySelector('[data-countdown-text]');
+        if (txt) txt.textContent = countdownLabel(left);
+      });
+      // When a deadline passes, swap the card to "Ended · awaiting finalize" with the Finalize button.
+      document.querySelectorAll('[data-finalize-at]').forEach(el => {
+        const wait = Math.ceil((Number(el.dataset.finalizeAt) - now) / 1000);
+        if (wait > 0) el.textContent = `Finalize in ${wait}s`; else rerender = true;
+      });
+      refreshModalDeadline();
+      if (rerender) { renderCampaigns(); justEnded.clear(); renderMyBackings(); }
+    }
+
+    // Display-only English text for early test campaigns whose on-chain descriptions were written in Indonesian.
+    const DESCRIPTION_EN = {
+      'Jalur Funded': 'Funded path demo.',
+      'Kampanye demo': 'Demo campaign.'
+    };
+
+    function mapCampaign(c) {
+      const deadlineMs = Number(BigInt(c.deadline_ns) / 1000000n);
+      const left = deadlineMs - Date.now();
+      return {
+        id: String(c.id),
+        title: c.title,
+        creator: c.creator,
+        category: 'On-chain',
+        description: DESCRIPTION_EN[c.description] || c.description || 'No description.',
+        target: yoctoToNear(c.target),
+        raised: yoctoToNear(c.raised),
+        cushion: yoctoToNear(c.cushion),
+        backers: c.backers,
+        ended: left <= 0,
+        deadlineMs,
+        timeLeft: timeLeftLabel(left),
+        status: String(c.status).toLowerCase(), // 'active' | 'funded' | 'missed'
+        withdrawn: c.withdrawn,
+        rewardLabel: 'Set by the creator (off-chain)'
+      };
+    }
+
+    async function loadChainData() {
+      const grid = document.getElementById('campaigns-grid');
+      grid.innerHTML = '<p class="text-sm font-bold text-[#1b1340]/70">Loading campaigns from ukemi.testnet…</p>';
+      try {
+        const raw = await viewCall('get_campaigns', { from_index: 0, limit: 100 });
+        state.campaigns = raw.map(mapCampaign).reverse();
+        const acct = state.walletAddress;
+        const [bal, pledges] = state.walletConnected
+          ? await Promise.all([
+              viewAccountBalance(acct),
+              Promise.all(raw.map(c => viewCall('get_pledge', { campaign_id: c.id, account_id: acct })))
+            ])
+          : [0, raw.map(() => null)];
+        state.nearBalance = bal;
+        state.myBackings = raw
+          .map((c, i) => pledges[i] ? { id: 'back-' + c.id, campaignId: String(c.id), pledged: yoctoToNear(pledges[i].amount), claimed: pledges[i].claimed, timestamp: 'on ukemi.testnet' } : null)
+          .filter(Boolean)
+          .reverse();
+        state.totalClaimed = state.myBackings.reduce((sum, b) => {
+          const c = state.campaigns.find(x => x.id === b.campaignId);
+          return b.claimed && c && c.raised > 0 ? sum + b.pledged + (b.pledged / c.raised) * c.cushion : sum;
+        }, 0);
+      } catch (e) {
+        grid.innerHTML = '<p class="text-sm font-bold text-[#1b1340]/70">Could not reach the NEAR testnet RPC. Check your connection and reload.</p>';
+        showToast('Load failed', String(e && e.message ? e.message : e), 'indigo');
+        return;
+      }
+      renderWalletHeader();
+      filterCampaigns(state.campaignFilter);
+      renderMyBackings();
+    }
+
+    // --- WALLET (NEAR Connect) + WRITE HELPERS ---
+    const GAS = '30000000000000'; // 30 Tgas, same as the CLI runs
+    const DEFAULT_VIEW = 'ukemi-backer.testnet';
+    let connector = null;
+
+    function nearToYocto(str) {
+      const [i, f = ''] = String(str).split('.');
+      return (BigInt(i || '0') * 10n ** 24n + BigInt((f + '0'.repeat(24)).slice(0, 24))).toString();
+    }
+
+    function withdrawAmount(c) {
+      if (c.status === 'funded') return c.raised + c.cushion;
+      if (c.status === 'missed' && c.raised === 0) return c.cushion;
+      return 0;
+    }
+
+    function canWithdraw(c) {
+      return state.walletConnected && c.creator === state.walletAddress && !c.withdrawn && withdrawAmount(c) > 0;
+    }
+
+    function txNote(r) { return r.hash ? ' Tx: ' + r.hash : ''; }
+
+    async function afterTx() {
+      await new Promise(res => setTimeout(res, 2500));
+      await loadChainData();
+    }
+
+    async function sendTx(methodName, args, depositYocto = '0') {
+      if (!state.walletConnected || !connector) {
+        showToast('Connect Wallet First', 'Connect your NEAR testnet wallet in the top bar first.', 'indigo');
+        return null;
+      }
+      try {
+        let wallet = null;
+        try { wallet = await connector.wallet(); } catch (e) {}
+        if (!wallet) {
+          showToast('Reconnect wallet', 'Your signing session has expired. Choose your wallet again to continue.', 'indigo');
+          connector.connect();
+          return null;
+        }
+        const res = await wallet.signAndSendTransaction({
+          receiverId: CONTRACT_ID,
+          actions: [{ type: 'FunctionCall', params: { methodName, args, gas: GAS, deposit: depositYocto } }]
+        });
+        if (res && res.status && res.status.Failure) throw new Error(JSON.stringify(res.status.Failure));
+        const hash = res && ((res.transaction && res.transaction.hash) || (res.transaction_outcome && res.transaction_outcome.id)) || '';
+        return { hash };
+      } catch (e) {
+        showToast('Transaction failed', String(e && e.message ? e.message : e), 'indigo');
+        return null;
+      }
+    }
+
+    async function onWalletSignedIn(wallet, accounts) {
+      let addr = accounts && accounts[0] && (accounts[0].accountId || accounts[0].account_id);
+      if (!addr) addr = await wallet.getAddress();
+      if (state.walletConnected && state.walletAddress === addr) return;
+      state.walletConnected = true;
+      state.walletAddress = addr;
+      try { localStorage.setItem('ukemi_session', addr); } catch (e) {}
+      showToast('NEAR Wallet Connected', 'Connected as ' + addr + ' on testnet.');
+      loadChainData();
+    }
+
+    async function initWallet() {
+      let mod = null;
+      for (const url of ['https://esm.sh/@hot-labs/near-connect@0.11.1', 'https://cdn.jsdelivr.net/npm/@hot-labs/near-connect@0.11.1/+esm']) {
+        try { mod = await import(url); break; } catch (e) {}
+      }
+      if (!mod) {
+        showToast('Wallet library not loaded', 'Check your connection and reload. Reading campaigns still works.', 'indigo');
+        return;
+      }
+      connector = new mod.NearConnector({ network: 'testnet' });
+      connector.on('wallet:signIn', async (ev) => {
+        try { await onWalletSignedIn(ev.wallet, ev.accounts); }
+        catch (e) { showToast('Sign-in failed', String(e && e.message ? e.message : e), 'indigo'); }
+      });
+      connector.on('wallet:signOut', () => {
+        try { localStorage.removeItem('ukemi_session'); } catch (e) {}
+        state.walletConnected = false;
+        state.walletAddress = DEFAULT_VIEW;
+        loadChainData();
+      });
+      let restored = false;
+      try { const w = await connector.wallet(); if (w) { await onWalletSignedIn(w); restored = true; } } catch (e) {}
+      if (!restored && !state.walletConnected) {
+        let saved = null;
+        try { saved = localStorage.getItem('ukemi_session'); } catch (e) {}
+        if (saved) { state.walletConnected = true; state.walletAddress = saved; loadChainData(); }
+      }
+    }
+
+    async function walletButtonClick() {
+      if (!connector) { showToast('Wallet not ready', 'The wallet library is still loading or failed to load.', 'indigo'); return; }
+      if (!state.walletConnected) { connector.connect(); return; }
+      toggleWalletMenu();
+    }
+
+    function toggleWalletMenu(force) {
+      const m = document.getElementById('wallet-menu');
+      if (!m) return;
+      const show = typeof force === 'boolean' ? force : m.classList.contains('hidden');
+      m.classList.toggle('hidden', !show);
+    }
+
+    document.addEventListener('click', (e) => {
+      const box = document.getElementById('wallet-box');
+      if (box && !box.contains(e.target)) toggleWalletMenu(false);
+    });
+
+    async function disconnectWallet() {
+      toggleWalletMenu(false);
+      try { await connector.disconnect(await connector.wallet()); } catch (e) {}
+      try { localStorage.removeItem('ukemi_session'); } catch (e) {}
+      state.walletConnected = false;
+      state.walletAddress = DEFAULT_VIEW;
+      loadChainData();
+    }
+
+    async function switchWalletAccount() {
+      toggleWalletMenu(false);
+      try { await connector.disconnect(await connector.wallet()); } catch (e) {}
+      try { localStorage.removeItem('ukemi_session'); } catch (e) {}
+      state.walletConnected = false;
+      state.walletAddress = DEFAULT_VIEW;
+      loadChainData();
+      try { connector.connect(); } catch (e) {}
+    }
+
+    // --- INITIALIZE ON LOAD ---
+    window.addEventListener('DOMContentLoaded', () => {
+      renderWalletHeader();
+      updateSimulator();
+      renderCampaigns();
+      renderMyBackings();
+      updateLaunchPreview();
+      const startRoute = routeFromHash();
+      if (TABS.includes(startRoute) && startRoute !== 'explore') switchMainTab(startRoute, true);
+      else if (startRoute.startsWith('back-')) { try { history.replaceState(null, '', '#explore'); } catch (e) {} }
+      loadChainData();
+      initWallet();
+      setInterval(tickCountdowns, 1000);
+    });
+  </script>
+</body>
+</html>
