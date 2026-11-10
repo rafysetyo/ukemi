@@ -51,7 +51,7 @@ Views: `get_campaign_count`, `get_campaign`, `get_campaigns(from_index, limit)`,
 
 Amounts are yoctoNEAR strings (1 NEAR = 10^24). Bonus uses floor division, so a few yocto of dust can stay in the contract.
 
-Known limits (prototype): a refund or withdraw to an account that no longer exists is not rolled back; no pause or upgrade logic.
+Known limits are listed in [Failure cases and limits](#failure-cases-and-limits).
 
 ### Test and build
 ```
@@ -94,10 +94,36 @@ Transaction screenshots: [pledge](docs/screenshots/07-tx-pledge.png), [finalize]
 
 The funded path was also run on testnet: campaign #1 ("Demo Funded") reached its target and the creator withdrew.
 
-## Notes
+## Failure cases and limits
 
-- Testnet only. No real funds.
-- "Deliverable if funded" is set by the creator and fulfilled off-chain.
+Ukemi is a hackathon prototype on testnet. These are the known gaps, roughly in order of how much they matter.
+
+**1. A creator can fund their own campaign from another account.**
+The contract only rejects a pledge from the creator's own account. It has no identity or sybil resistance, so a second account the creator controls can pledge. That has two effects:
+
+- *Forcing "Funded".* The creator can cover the shortfall to the target before the deadline, finalize, and withdraw `raised + cushion`. The topped-up money comes back with it, so the cushion is only at risk if the creator lets the campaign miss. Real backers then lose the refund and bonus they would have had.
+- *Taking back part of the cushion.* On a missed campaign the bonus is pro-rata to pledges, so a creator-controlled pledge claims its share of the creator's own cushion.
+
+`raised` shows how much was pledged, not how many independent people backed the project.
+
+**2. Late pledges dilute the cushion.**
+The bonus is `pledge / raised * cushion`, with no weight for time or risk, and principal is returned in full if the target is missed. A large pledge placed just before the deadline, kept below the target, takes most of the cushion. Example: target 100 NEAR, cushion 10 NEAR, one backer pledged 10 NEAR. A second account pledges 89 NEAR (raised 99, still below target). If the campaign misses, the late pledge claims 89 + 8.99 NEAR, and the first backer's bonus drops from 10 NEAR to 1.01 NEAR. The late pledger's only risk is that someone else tips `raised` over the target in the same window. This is not mitigated in this version.
+
+**3. Delivery is not enforced on-chain.**
+If the target is met, the creator can withdraw `raised + cushion` right after `finalize`. There are no milestones, no staged release and no dispute step, and the cushion returns to the creator, so it gives backers no protection after funding. "Deliverable if funded" is set by the creator and fulfilled off-chain.
+
+**4. The escrow is only as trustless as the deployer account.**
+The contract has no pause or upgrade logic, but pledges sit in the balance of `ukemi.testnet`. Whether that account still holds a full-access key, which could redeploy the code or move the balance, is a deployment detail the contract cannot enforce.
+
+**5. Payouts are not rolled back on failure.**
+`claim_refund` and `withdraw` mark the payout as done before the transfer and have no callback. If the transfer fails, for example because the recipient account was deleted, the funds stay in the contract and the flag is not reset.
+
+**6. Storage is paid by the contract, not by users.**
+`create_campaign` and `back` do not collect a storage deposit, and campaigns and pledges are never deleted. Storage cost is locked from the contract account's balance, which is also where pledges are held.
+
+**What the contract does enforce.** The outcome depends only on `raised` versus `target`, decided once after the deadline. Pledged funds leave the contract only through `claim_refund` (missed campaigns, once per backer) or `withdraw` (the creator, once). These rules have unit tests in `src/lib.rs`.
+
+Testnet only, no real funds. The contract has not been audited.
 
 ## License
 
