@@ -1,6 +1,43 @@
-# Ukemi contract
+# Ukemi (oo-keh-mee): soft-fall crowdfunding on NEAR
 
-Assurance crowdfunding on NEAR. Outcome rule: only `raised` versus `target`, decided once after the deadline.
+Ukemi is an assurance crowdfunding contract on NEAR testnet. If a campaign misses its target, backers get **100% of their principal back plus a share of the creator's Gold Cushion**. If it reaches the target, the creator withdraws the funds and the cushion.
+
+Built for **NEAR HACKATHON 2026**.
+
+- Contract (testnet): `ukemi.testnet`
+- Frontend: single file, `frontend/index.html`, no build step
+- Full soft-fall flow already run on testnet: see [Proof on testnet](#proof-on-testnet)
+
+## How it works
+
+Outcome rule: only `raised` versus `target`, decided once after the deadline.
+
+| Outcome | Backer receives | Creator receives |
+|---|---|---|
+| Funded (raised >= target) | Project rewards, delivered off-chain by the creator | Raised amount + Gold Cushion |
+| Missed (raised < target) | Principal + `pledge / raised * cushion` | Nothing from pledges. If there are no backers, the cushion comes back |
+
+Example from the live run (campaign #10): the only pledge was 2 NEAR, the cushion was 0.50 NEAR, the target was missed, and the backer claimed **2.50 NEAR (+25%)**.
+
+## Try it in 3 minutes
+
+No wallet is needed for steps 1 to 3.
+
+1. Start the frontend:
+   ```
+   cd frontend
+   python3 -m http.server 8000
+   ```
+   Open http://localhost:8000. It needs internet access, because Tailwind, the wallet library and the fonts load from CDNs.
+2. Open **Outcome Simulator**. With a 100 NEAR target, a 10 NEAR Gold Cushion and a 10 NEAR pledge, move the "Simulated Final Progress" slider to **65%**. You should see **Total Soft-Fall Payout 11.54 NEAR**, made of the 10 NEAR principal plus a **+1.54 NEAR** bonus (15.38% of the cushion pool). Move the slider to **108%** and the "Funded" outcome lights up instead.
+3. Open **Explore Campaigns**. Campaigns are read live from `ukemi.testnet`. Campaign **#1 "Demo Funded"** shows *Target Met · Funded*, and campaign **#0 "Demo Ukemi"** shows *Soft-Fall Activated*.
+4. To run the full flow yourself, use two NEAR testnet accounts, because a creator cannot back their own campaign:
+   1. Connect account A and use **Launch Campaign** with a short duration (the contract takes minutes) and a Gold Cushion.
+   2. Switch to account B and back the campaign from **Explore Campaigns**.
+   3. Wait for the deadline, then press **Finalize** on the campaign card.
+   4. Open **My Backings** as account B and claim. If the target was missed, you receive your principal plus the bonus.
+
+## Contract
 
 | Method | Who | What |
 |---|---|---|
@@ -16,13 +53,13 @@ Amounts are yoctoNEAR strings (1 NEAR = 10^24). Bonus uses floor division, so a 
 
 Known limits (prototype): a refund or withdraw to an account that no longer exists is not rolled back; no pause or upgrade logic.
 
-## Test and build
+### Test and build
 ```
 cargo test
 cargo near build non-reproducible-wasm   # needs cargo-near
 ```
 
-## Deployed contract
+### Deployed contract
 
 Live on NEAR testnet as `ukemi.testnet`.
 
@@ -31,17 +68,6 @@ Live on NEAR testnet as `ukemi.testnet`.
 `frontend/index.html` is a single-file web app (no build step) for exploring campaigns, simulating payouts, launching campaigns, and backing, finalizing, claiming and withdrawing.
 
 It reads campaigns directly from `ukemi.testnet` over public testnet RPC endpoints, so browsing works without a wallet. Sending transactions needs a NEAR testnet wallet, connected through `@hot-labs/near-connect`.
-
-Run it locally:
-
-```
-cd frontend
-python3 -m http.server 8000
-```
-
-Then open http://localhost:8000. It needs internet access, because Tailwind, the wallet library and the fonts load from CDNs.
-
-A creator cannot back their own campaign, so to try the full flow, create a campaign with one testnet account and back it with another.
 
 ## Screenshots
 
@@ -52,7 +78,6 @@ A creator cannot back their own campaign, so to try the full flow, create a camp
 | **Outcome Simulator, missed (65%)** | ![Simulator missed](docs/screenshots/03-simulator-missed.png) |
 | **Explore, before pledge** | ![Explore before](docs/screenshots/04a-explore-before.png) |
 | **Explore, after pledge** | ![Explore after](docs/screenshots/04-explore.png) |
-| **Launch Campaign** | ![Launch](docs/screenshots/05-launch.png) |
 | **My Backings, after claim** | ![My Backings](docs/screenshots/06-my-backings.png) |
 
 ## Proof on testnet
@@ -68,3 +93,8 @@ The full missed-target flow, run end to end against `ukemi.testnet` (campaign #1
 Transaction screenshots: [pledge](docs/screenshots/07-tx-pledge.png), [finalize](docs/screenshots/08-tx-finalize.png), [claim](docs/screenshots/09-tx-claim.png).
 
 The funded path was also run on testnet: campaign #1 ("Demo Funded") reached its target and the creator withdrew.
+
+## Notes
+
+- Testnet only. No real funds.
+- "Deliverable if funded" is set by the creator and fulfilled off-chain.
