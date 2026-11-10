@@ -1,1 +1,7 @@
 target/
+.env
+*.key
+*.pem
+neardev/
+.near-credentials/
+node_modules/
