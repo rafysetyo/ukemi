@@ -464,4 +464,69 @@ mod tests {
         set(accounts(1), 0, 10 * MIN);
         let _ = c.withdraw(0);
     }
+
+    /// README limit 2: a late pledge kept just below the target takes most of the cushion.
+    #[test]
+    fn known_limit_late_pledge_dilutes_cushion() {
+        let mut c = Ukemi::new();
+        // Target 100 NEAR, cushion 10 NEAR.
+        set(accounts(0), 10 * NEAR, 0);
+        c.create_campaign("Demo".into(), "Test".into(), U128(100 * NEAR), 10);
+
+        set(accounts(1), 10 * NEAR, MIN);
+        c.back(0); // early backer, 10 NEAR
+        set(accounts(2), 89 * NEAR, 10 * MIN - 1);
+        c.back(0); // late pledge one tick before the deadline: raised 99 < target 100
+
+        set(accounts(3), 0, 10 * MIN);
+        assert_eq!(c.finalize(0), Status::Missed);
+
+        let early = c.get_claimable(0, accounts(1)).0;
+        let late = c.get_claimable(0, accounts(2)).0;
+        let early_bonus = early - 10 * NEAR;
+        let late_bonus = late - 89 * NEAR;
+
+        // Alone, the early backer would be owed the whole 10 NEAR cushion. Now only ~1.01 NEAR.
+        assert!(early_bonus > NEAR * 101 / 100 && early_bonus < NEAR * 102 / 100);
+        // The late pledge, refunded in full anyway, takes ~8.99 NEAR of the cushion.
+        assert!(late_bonus > NEAR * 898 / 100 && late_bonus < NEAR * 899 / 100);
+        // Nothing is created or lost beyond rounding dust.
+        assert!(109 * NEAR - (early + late) <= 2);
+    }
+
+    /// README limit 1: the creator can cover the shortfall from a second account and force "Funded".
+    #[test]
+    fn known_limit_creator_can_force_funded_from_second_account() {
+        let mut c = Ukemi::new();
+        // Two identical campaigns: target 100 NEAR, cushion 10 NEAR.
+        set(accounts(0), 10 * NEAR, 0);
+        c.create_campaign("Honest".into(), "Test".into(), U128(100 * NEAR), 10);
+        set(accounts(0), 10 * NEAR, 0);
+        c.create_campaign("Padded".into(), "Test".into(), U128(100 * NEAR), 10);
+
+        // The same real backer pledges 40 NEAR to both.
+        set(accounts(1), 40 * NEAR, MIN);
+        c.back(0);
+        set(accounts(1), 40 * NEAR, MIN);
+        c.back(1);
+
+        // On campaign 1 the creator covers the 60 NEAR shortfall from a second account.
+        // The contract only blocks the creator's own account, so this goes through.
+        set(accounts(4), 60 * NEAR, 2 * MIN);
+        c.back(1);
+
+        set(accounts(3), 0, 10 * MIN);
+        assert_eq!(c.finalize(0), Status::Missed);
+        assert_eq!(c.finalize(1), Status::Funded);
+
+        // Without the top-up the backer gets principal + the whole cushion back (40 + 10).
+        assert_eq!(c.get_claimable(0, accounts(1)).0, 50 * NEAR);
+        // With it, the same backer gets no refund and no bonus.
+        assert_eq!(c.get_claimable(1, accounts(1)).0, 0);
+
+        // The creator withdraws raised + cushion, so the top-up comes back with it.
+        set(accounts(0), 0, 10 * MIN);
+        let _ = c.withdraw(1);
+        assert!(c.get_campaign(1).unwrap().withdrawn);
+    }
 }

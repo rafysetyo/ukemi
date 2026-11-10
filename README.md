@@ -121,7 +121,7 @@ The contract has no pause or upgrade logic, but pledges sit in the balance of `u
 **6. Storage is paid by the contract, not by users.**
 `create_campaign` and `back` do not collect a storage deposit, and campaigns and pledges are never deleted. Storage cost is locked from the contract account's balance, which is also where pledges are held.
 
-**What the contract does enforce.** The outcome depends only on `raised` versus `target`, decided once after the deadline. Pledged funds leave the contract only through `claim_refund` (missed campaigns, once per backer) or `withdraw` (the creator, once). These rules have unit tests in `src/lib.rs`.
+**What the contract does enforce.** The outcome depends only on `raised` versus `target`, decided once after the deadline. Pledged funds leave the contract only through `claim_refund` (missed campaigns, once per backer) or `withdraw` (the creator, once). These rules have unit tests in `src/lib.rs`. Limits 1 and 2 above are demonstrated by the `known_limit_*` tests in the same file.
 
 Testnet only, no real funds. The contract has not been audited.
 
