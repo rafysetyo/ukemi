@@ -169,6 +169,15 @@ Each item answers one of the limits above, in rough priority order. None of this
 3. **Raise the cost of self-funding** (limit 1). For example minimum pledge sizes and a delay before the creator can withdraw. Full sybil resistance needs an identity layer, which is out of scope for now.
 4. **Hardening and mainnet** (limit 4). External audit, then remove the full-access key or move it to a multisig before any mainnet deployment.
 
+## Built with
+
+The commit history starts on 2026-11-10, inside the hackathon window. There is no pre-hackathon baseline.
+
+- **Contract:** Rust with `near-sdk` 5.x (the `unit-testing` feature for tests).
+- **Frontend:** a single HTML file with no build step. Tailwind CSS (Play CDN), Plus Jakarta Sans (Google Fonts), and `@hot-labs/near-connect` 0.11.1 for wallet connection (loaded from esm.sh, with a jsDelivr fallback).
+- **Network:** public NEAR testnet RPC endpoints (FastNEAR, intea.rs, dRPC, near.org). Transaction links go to nearblocks.io.
+- **AI assistance:** AI assistants were used during development. The 17 unit tests pass with `cargo test`, and the full flow was run on testnet (see [Proof on testnet](#proof-on-testnet)).
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
