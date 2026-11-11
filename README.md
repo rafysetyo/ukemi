@@ -4,6 +4,7 @@ Ukemi is an assurance crowdfunding contract on NEAR testnet. If a campaign misse
 
 Built for **NEAR HACKATHON 2026**.
 
+- Live demo: https://rafysetyo.github.io/ukemi/frontend/
 - Contract (testnet): `ukemi.testnet`
 - Frontend: single file, `frontend/index.html`, no build step
 - Full soft-fall flow already run on testnet with the current contract: see [Proof on testnet](#proof-on-testnet)
