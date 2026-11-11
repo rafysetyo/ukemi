@@ -448,6 +448,7 @@ mod tests {
             .predecessor_account_id(predecessor)
             .attached_deposit(NearToken::from_yoctonear(deposit))
             .block_timestamp(ts)
+            .account_balance(NearToken::from_near(100_000))
             .build());
     }
 
