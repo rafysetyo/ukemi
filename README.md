@@ -36,9 +36,9 @@ No wallet is needed for steps 1 to 3.
 1. Start the frontend:
    ```
    cd frontend
-   python3 -m http.server 8000
+   python3 -m http.server 8082
    ```
-   Open http://localhost:8000. It needs internet access, because Tailwind, the wallet library and the fonts load from CDNs.
+   Open http://localhost:8082. It needs internet access, because Tailwind, the wallet library and the fonts load from CDNs.
 2. Open **Outcome Simulator**. With a 100 NEAR target, a 10 NEAR Gold Cushion and a 10 NEAR pledge, move the "Simulated Final Progress" slider to **65%**. You should see **Total Soft-Fall Payout 11.54 NEAR**, made of the 10 NEAR principal plus a **+1.54 NEAR** bonus (15.38% of the cushion pool). Move the slider to **108%** and the "Funded" outcome lights up instead.
 3. Open **Explore Campaigns**. Campaigns are read live from `ukemi.testnet`. Campaign **#1 "Demo Funded"** shows *Target Met · Funded*, and campaign **#0 "Demo Ukemi"** shows *Soft-Fall Activated*.
 4. To run the full flow yourself, use two NEAR testnet accounts, because a creator cannot back their own campaign:
