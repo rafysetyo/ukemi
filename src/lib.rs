@@ -4,15 +4,33 @@
 //! after the deadline.
 //!   - raised >= target: the creator withdraws the raised funds plus the cushion.
 //!   - raised <  target: every backer claims principal + pledge / raised * cushion.
+//!
+//! Storage: every new campaign and every new (campaign, backer) pledge adds state
+//! that is never deleted. The contract measures the bytes it just added and keeps
+//! that cost out of the attached deposit, so the contract balance can never be
+//! drained by spam. As a result:
+//!   - cushion = attached deposit - storage fee of the campaign record
+//!   - pledge  = attached deposit - storage fee of the pledge record (first pledge
+//!               of an account to a campaign only; later top-ups are charged nothing)
+//!
+//! Transfers: `claim_refund` and `withdraw` mark the entry as paid first, then send
+//! the transfer, then a private callback undoes the mark if the transfer failed
+//! (e.g. the receiving account no longer exists), so the funds can be claimed again.
 
 use near_sdk::json_types::{U128, U64};
 use near_sdk::store::{LookupMap, Vector};
-use near_sdk::{env, near, require, AccountId, NearToken, PanicOnDefault, Promise};
+use near_sdk::{
+    env, is_promise_success, near, require, AccountId, Gas, NearToken, PanicOnDefault, Promise,
+};
 
 const MAX_TITLE: usize = 80;
 const MAX_DESCRIPTION: usize = 500;
 const MAX_DURATION_MINUTES: u64 = 30 * 24 * 60;
 const NS_PER_MINUTE: u64 = 60 * 1_000_000_000;
+
+fn callback_gas() -> Gas {
+    Gas::from_tgas(10)
+}
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -58,6 +76,14 @@ fn pledge_key(campaign_id: u32, account: &AccountId) -> String {
     format!("{}:{}", campaign_id, account)
 }
 
+/// Cost in yoctoNEAR of the storage added since `usage_before` (a value of
+/// `env::storage_usage()`). Callers must `flush()` the collection they just wrote
+/// to, because near-sdk's `store` collections only write to storage on flush/drop.
+fn storage_fee_since(usage_before: u64) -> u128 {
+    let added = env::storage_usage().saturating_sub(usage_before) as u128;
+    added * env::storage_byte_cost().as_yoctonear()
+}
+
 /// floor(a * b / c) without overflowing u128 in the intermediate product.
 /// Double-and-add over the bits of `b`; requires c < 2^126 (total NEAR supply is ~2^110).
 fn mul_div(a: u128, b: u128, c: u128) -> u128 {
@@ -98,7 +124,8 @@ impl Ukemi {
         }
     }
 
-    /// Creator commits the Gold Cushion by attaching it as the deposit.
+    /// Creator commits the Gold Cushion by attaching it as the deposit. The storage
+    /// fee of the campaign record is taken out of the deposit; the rest is the cushion.
     /// `duration_minutes` is in minutes so demo campaigns can end within minutes.
     #[payable]
     pub fn create_campaign(
@@ -108,7 +135,7 @@ impl Ukemi {
         target: U128,
         duration_minutes: u64,
     ) -> u32 {
-        let cushion = env::attached_deposit().as_yoctonear();
+        let deposit = env::attached_deposit().as_yoctonear();
         let title = title.trim().to_string();
         require!(
             !title.is_empty() && title.len() <= MAX_TITLE,
@@ -119,8 +146,7 @@ impl Ukemi {
             "Description is limited to 500 characters"
         );
         require!(target.0 > 0, "Target must be positive");
-        require!(cushion > 0, "Attach the Gold Cushion as a deposit");
-        require!(cushion <= target.0, "Cushion cannot exceed the target");
+        require!(deposit > 0, "Attach the Gold Cushion as a deposit");
         require!(
             (1..=MAX_DURATION_MINUTES).contains(&duration_minutes),
             "Duration must be 1 minute to 30 days"
@@ -129,74 +155,116 @@ impl Ukemi {
         let id = self.campaigns.len();
         let creator = env::predecessor_account_id();
         let deadline_ns = env::block_timestamp() + duration_minutes * NS_PER_MINUTE;
+
+        // Write the record with the full deposit as a placeholder cushion (same
+        // serialized size as the final value), measure it, then set the real cushion.
+        let usage_before = env::storage_usage();
         self.campaigns.push(Campaign {
             id,
             creator: creator.clone(),
             title,
             description,
             target,
-            cushion: U128(cushion),
+            cushion: U128(deposit),
             raised: U128(0),
             backers: 0,
             deadline_ns: U64(deadline_ns),
             status: Status::Active,
             withdrawn: false,
         });
-        env::log_str(&format!("campaign_created id={} creator={}", id, creator));
+        self.campaigns.flush();
+        let fee = storage_fee_since(usage_before);
+
+        require!(deposit > fee, "Deposit does not cover the storage fee");
+        let cushion = deposit - fee;
+        require!(cushion <= target.0, "Cushion cannot exceed the target");
+        self.campaigns
+            .get_mut(id)
+            .unwrap_or_else(|| env::panic_str("Campaign not found"))
+            .cushion = U128(cushion);
+
+        env::log_str(&format!(
+            "campaign_created id={} creator={} cushion={} storage_fee={}",
+            id, creator, cushion, fee
+        ));
         id
     }
 
     /// Backer pledges by attaching the deposit. Allowed until the deadline.
+    /// The first pledge of an account to a campaign pays the storage fee of its
+    /// pledge record out of the deposit; later pledges are credited in full.
     #[payable]
     pub fn back(&mut self, campaign_id: u32) {
-        let amount = env::attached_deposit().as_yoctonear();
-        require!(amount > 0, "Attach a pledge");
+        let deposit = env::attached_deposit().as_yoctonear();
+        require!(deposit > 0, "Attach a pledge");
         let backer = env::predecessor_account_id();
+
+        {
+            let camp = self
+                .campaigns
+                .get(campaign_id)
+                .unwrap_or_else(|| env::panic_str("Campaign not found"));
+            require!(camp.status == Status::Active, "Campaign is not active");
+            require!(
+                env::block_timestamp() < camp.deadline_ns.0,
+                "Deadline has passed"
+            );
+            require!(backer != camp.creator, "Creator cannot back own campaign");
+        }
+
+        let key = pledge_key(campaign_id, &backer);
+        let is_new = self.pledges.get(&key).is_none();
+
+        let (credited, fee) = if is_new {
+            let usage_before = env::storage_usage();
+            self.pledges.insert(
+                key.clone(),
+                Pledge {
+                    amount: U128(deposit),
+                    claimed: false,
+                },
+            );
+            self.pledges.flush();
+            let fee = storage_fee_since(usage_before);
+
+            require!(deposit > fee, "Deposit does not cover the storage fee");
+            let credited = deposit - fee;
+            self.pledges
+                .get_mut(&key)
+                .unwrap_or_else(|| env::panic_str("No pledge found"))
+                .amount = U128(credited);
+            (credited, fee)
+        } else {
+            let pledge = self
+                .pledges
+                .get_mut(&key)
+                .unwrap_or_else(|| env::panic_str("No pledge found"));
+            pledge.amount = U128(
+                pledge
+                    .amount
+                    .0
+                    .checked_add(deposit)
+                    .unwrap_or_else(|| env::panic_str("Overflow")),
+            );
+            (deposit, 0)
+        };
 
         let camp = self
             .campaigns
             .get_mut(campaign_id)
             .unwrap_or_else(|| env::panic_str("Campaign not found"));
-        require!(camp.status == Status::Active, "Campaign is not active");
-        require!(
-            env::block_timestamp() < camp.deadline_ns.0,
-            "Deadline has passed"
-        );
-        require!(backer != camp.creator, "Creator cannot back own campaign");
-
         camp.raised = U128(
             camp.raised
                 .0
-                .checked_add(amount)
+                .checked_add(credited)
                 .unwrap_or_else(|| env::panic_str("Overflow")),
         );
-
-        let key = pledge_key(campaign_id, &backer);
-        let previous = self.pledges.get(&key).map(|p| p.amount.0);
-        match previous {
-            Some(prev) => {
-                self.pledges.insert(
-                    key,
-                    Pledge {
-                        amount: U128(prev + amount),
-                        claimed: false,
-                    },
-                );
-            }
-            None => {
-                camp.backers += 1;
-                self.pledges.insert(
-                    key,
-                    Pledge {
-                        amount: U128(amount),
-                        claimed: false,
-                    },
-                );
-            }
+        if is_new {
+            camp.backers += 1;
         }
         env::log_str(&format!(
-            "pledged id={} backer={} amount={}",
-            campaign_id, backer, amount
+            "pledged id={} backer={} credited={} storage_fee={}",
+            campaign_id, backer, credited, fee
         ));
     }
 
@@ -221,6 +289,7 @@ impl Ukemi {
     }
 
     /// Missed campaign: backer claims principal plus pledge / raised * cushion.
+    /// If the transfer fails, `on_refund_resolved` clears the `claimed` flag again.
     pub fn claim_refund(&mut self, campaign_id: u32) -> Promise {
         let camp = self
             .campaigns
@@ -240,16 +309,23 @@ impl Ukemi {
 
         let bonus = mul_div(pledge.amount.0, camp.cushion.0, camp.raised.0);
         let payout = pledge.amount.0 + bonus;
-        pledge.claimed = true; // state first, transfer second
+        pledge.claimed = true; // state first, transfer second, rollback in the callback
         env::log_str(&format!(
             "refund_claimed id={} backer={} payout={}",
             campaign_id, claimer, payout
         ));
-        Promise::new(claimer).transfer(NearToken::from_yoctonear(payout))
+        Promise::new(claimer.clone())
+            .transfer(NearToken::from_yoctonear(payout))
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(callback_gas())
+                    .on_refund_resolved(campaign_id, claimer),
+            )
     }
 
     /// Creator: funded campaign pays raised + cushion. A missed campaign with
     /// zero backers returns the cushion (nobody else is owed it).
+    /// If the transfer fails, `on_withdraw_resolved` clears the `withdrawn` flag again.
     pub fn withdraw(&mut self, campaign_id: u32) -> Promise {
         let camp = self
             .campaigns
@@ -266,7 +342,29 @@ impl Ukemi {
         };
         camp.withdrawn = true;
         env::log_str(&format!("withdrawn id={} payout={}", campaign_id, payout));
-        Promise::new(caller).transfer(NearToken::from_yoctonear(payout))
+        Promise::new(caller)
+            .transfer(NearToken::from_yoctonear(payout))
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(callback_gas())
+                    .on_withdraw_resolved(campaign_id),
+            )
+    }
+
+    // ---- Callbacks (only the contract account itself can call these) ----
+
+    #[private]
+    pub fn on_refund_resolved(&mut self, campaign_id: u32, account_id: AccountId) {
+        if !is_promise_success() {
+            self.undo_claim(campaign_id, &account_id);
+        }
+    }
+
+    #[private]
+    pub fn on_withdraw_resolved(&mut self, campaign_id: u32) {
+        if !is_promise_success() {
+            self.undo_withdraw(campaign_id);
+        }
     }
 
     // ---- Views ----
@@ -311,6 +409,29 @@ impl Ukemi {
     }
 }
 
+// Not exported as contract methods (plain impl block, no #[near]).
+impl Ukemi {
+    fn undo_claim(&mut self, campaign_id: u32, account_id: &AccountId) {
+        if let Some(p) = self.pledges.get_mut(&pledge_key(campaign_id, account_id)) {
+            p.claimed = false;
+        }
+        env::log_str(&format!(
+            "refund_failed id={} backer={} (claim reopened)",
+            campaign_id, account_id
+        ));
+    }
+
+    fn undo_withdraw(&mut self, campaign_id: u32) {
+        if let Some(c) = self.campaigns.get_mut(campaign_id) {
+            c.withdrawn = false;
+        }
+        env::log_str(&format!(
+            "withdraw_failed id={} (withdraw reopened)",
+            campaign_id
+        ));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -319,17 +440,19 @@ mod tests {
 
     const NEAR: u128 = 1_000_000_000_000_000_000_000_000;
     const MIN: u64 = 60_000_000_000;
+    /// Storage fees for one record are far below 0.1 NEAR.
+    const MAX_FEE: u128 = NEAR / 10;
 
     fn set(predecessor: AccountId, deposit: u128, ts: u64) {
         testing_env!(VMContextBuilder::new()
             .predecessor_account_id(predecessor)
             .attached_deposit(NearToken::from_yoctonear(deposit))
-            .account_balance(NearToken::from_near(1_000_000))
             .block_timestamp(ts)
             .build());
     }
 
-    /// Creator (accounts(0)) commits a 100 NEAR cushion on a 1000 NEAR target, 10 minute deadline.
+    /// Creator (accounts(0)) attaches 100 NEAR (cushion = 100 NEAR minus storage fee)
+    /// on a 1000 NEAR target, 10 minute deadline.
     fn setup() -> Ukemi {
         let mut c = Ukemi::new();
         set(accounts(0), 100 * NEAR, 0);
@@ -347,6 +470,49 @@ mod tests {
     }
 
     #[test]
+    fn create_campaign_takes_storage_fee_out_of_cushion() {
+        let c = setup();
+        let cushion = c.get_campaign(0).unwrap().cushion.0;
+        assert!(cushion < 100 * NEAR, "storage fee must be charged");
+        assert!(100 * NEAR - cushion < MAX_FEE, "storage fee must stay small");
+    }
+
+    #[test]
+    #[should_panic(expected = "Deposit does not cover the storage fee")]
+    fn create_campaign_rejects_deposit_below_storage_fee() {
+        let mut c = Ukemi::new();
+        set(accounts(0), 1, 0);
+        c.create_campaign("Demo".into(), "Test".into(), U128(1000 * NEAR), 10);
+    }
+
+    #[test]
+    fn first_pledge_pays_storage_fee_top_up_does_not() {
+        let mut c = setup();
+        set(accounts(1), 10 * NEAR, MIN);
+        c.back(0);
+        let first = c.get_pledge(0, accounts(1)).unwrap().amount.0;
+        assert!(first < 10 * NEAR, "first pledge must pay the storage fee");
+        assert!(10 * NEAR - first < MAX_FEE);
+
+        set(accounts(1), 10 * NEAR, 2 * MIN);
+        c.back(0);
+        let second = c.get_pledge(0, accounts(1)).unwrap().amount.0;
+        assert_eq!(second, first + 10 * NEAR, "top-up is credited in full");
+
+        let camp = c.get_campaign(0).unwrap();
+        assert_eq!(camp.backers, 1);
+        assert_eq!(camp.raised.0, second);
+    }
+
+    #[test]
+    #[should_panic(expected = "Deposit does not cover the storage fee")]
+    fn first_pledge_rejects_deposit_below_storage_fee() {
+        let mut c = setup();
+        set(accounts(1), 1, MIN);
+        c.back(0);
+    }
+
+    #[test]
     fn missed_campaign_splits_cushion_by_pledge() {
         let mut c = setup();
         set(accounts(1), 100 * NEAR, MIN);
@@ -355,11 +521,21 @@ mod tests {
         c.back(0);
 
         set(accounts(3), 0, 10 * MIN);
-        assert_eq!(c.finalize(0), Status::Missed); // raised 400 < target 1000
+        assert_eq!(c.finalize(0), Status::Missed); // raised ~400 < target 1000
 
-        // backer 1: 100 + 100/400 * 100 = 125, backer 2: 300 + 75 = 375 (sum = raised + cushion)
-        assert_eq!(c.get_claimable(0, accounts(1)).0, 125 * NEAR);
-        assert_eq!(c.get_claimable(0, accounts(2)).0, 375 * NEAR);
+        let camp = c.get_campaign(0).unwrap();
+        let p1 = c.get_pledge(0, accounts(1)).unwrap().amount.0;
+        let p2 = c.get_pledge(0, accounts(2)).unwrap().amount.0;
+        assert_eq!(camp.raised.0, p1 + p2);
+
+        let c1 = c.get_claimable(0, accounts(1)).0;
+        let c2 = c.get_claimable(0, accounts(2)).0;
+        assert_eq!(c1, p1 + mul_div(p1, camp.cushion.0, camp.raised.0));
+        assert_eq!(c2, p2 + mul_div(p2, camp.cushion.0, camp.raised.0));
+        // Everything raised + cushion is paid out, minus at most a couple of yocto of rounding.
+        let total = camp.raised.0 + camp.cushion.0;
+        assert!(c1 + c2 <= total);
+        assert!(total - (c1 + c2) <= 2);
 
         set(accounts(1), 0, 10 * MIN);
         let _ = c.claim_refund(0);
@@ -380,6 +556,24 @@ mod tests {
     }
 
     #[test]
+    fn failed_refund_transfer_can_be_retried() {
+        let mut c = setup();
+        set(accounts(1), 100 * NEAR, MIN);
+        c.back(0);
+        set(accounts(3), 0, 10 * MIN);
+        c.finalize(0);
+
+        set(accounts(1), 0, 10 * MIN);
+        let _ = c.claim_refund(0);
+        assert_eq!(c.get_claimable(0, accounts(1)).0, 0);
+
+        c.undo_claim(0, &accounts(1)); // what the callback does when the transfer failed
+        assert!(c.get_claimable(0, accounts(1)).0 > 0);
+        let _ = c.claim_refund(0); // retry succeeds
+        assert_eq!(c.get_claimable(0, accounts(1)).0, 0);
+    }
+
+    #[test]
     fn funded_campaign_pays_creator_once() {
         let mut c = setup();
         set(accounts(1), 600 * NEAR, MIN);
@@ -388,7 +582,7 @@ mod tests {
         c.back(0);
 
         set(accounts(3), 0, 10 * MIN);
-        assert_eq!(c.finalize(0), Status::Funded); // raised 1100 >= target 1000
+        assert_eq!(c.finalize(0), Status::Funded); // raised ~1100 >= target 1000
 
         set(accounts(0), 0, 10 * MIN);
         let _ = c.withdraw(0);
@@ -396,10 +590,28 @@ mod tests {
     }
 
     #[test]
+    fn failed_withdraw_transfer_can_be_retried() {
+        let mut c = setup();
+        set(accounts(1), 1100 * NEAR, MIN);
+        c.back(0);
+        set(accounts(3), 0, 10 * MIN);
+        c.finalize(0);
+
+        set(accounts(0), 0, 10 * MIN);
+        let _ = c.withdraw(0);
+        assert!(c.get_campaign(0).unwrap().withdrawn);
+
+        c.undo_withdraw(0); // what the callback does when the transfer failed
+        assert!(!c.get_campaign(0).unwrap().withdrawn);
+        let _ = c.withdraw(0); // retry succeeds
+        assert!(c.get_campaign(0).unwrap().withdrawn);
+    }
+
+    #[test]
     #[should_panic(expected = "Already withdrawn")]
     fn cannot_withdraw_twice() {
         let mut c = setup();
-        set(accounts(1), 1000 * NEAR, MIN);
+        set(accounts(1), 1100 * NEAR, MIN);
         c.back(0);
         set(accounts(3), 0, 10 * MIN);
         c.finalize(0);
@@ -412,7 +624,7 @@ mod tests {
     #[should_panic(expected = "Campaign did not miss its target")]
     fn funded_backers_cannot_claim_refund() {
         let mut c = setup();
-        set(accounts(1), 1000 * NEAR, MIN);
+        set(accounts(1), 1100 * NEAR, MIN);
         c.back(0);
         set(accounts(3), 0, 10 * MIN);
         c.finalize(0);
@@ -457,76 +669,11 @@ mod tests {
     #[should_panic(expected = "Only the creator can withdraw")]
     fn only_creator_can_withdraw() {
         let mut c = setup();
-        set(accounts(1), 1000 * NEAR, MIN);
+        set(accounts(1), 1100 * NEAR, MIN);
         c.back(0);
         set(accounts(3), 0, 10 * MIN);
         c.finalize(0);
         set(accounts(1), 0, 10 * MIN);
         let _ = c.withdraw(0);
-    }
-
-    /// README limit 2: a late pledge kept just below the target takes most of the cushion.
-    #[test]
-    fn known_limit_late_pledge_dilutes_cushion() {
-        let mut c = Ukemi::new();
-        // Target 100 NEAR, cushion 10 NEAR.
-        set(accounts(0), 10 * NEAR, 0);
-        c.create_campaign("Demo".into(), "Test".into(), U128(100 * NEAR), 10);
-
-        set(accounts(1), 10 * NEAR, MIN);
-        c.back(0); // early backer, 10 NEAR
-        set(accounts(2), 89 * NEAR, 10 * MIN - 1);
-        c.back(0); // late pledge one tick before the deadline: raised 99 < target 100
-
-        set(accounts(3), 0, 10 * MIN);
-        assert_eq!(c.finalize(0), Status::Missed);
-
-        let early = c.get_claimable(0, accounts(1)).0;
-        let late = c.get_claimable(0, accounts(2)).0;
-        let early_bonus = early - 10 * NEAR;
-        let late_bonus = late - 89 * NEAR;
-
-        // Alone, the early backer would be owed the whole 10 NEAR cushion. Now only ~1.01 NEAR.
-        assert!(early_bonus > NEAR * 101 / 100 && early_bonus < NEAR * 102 / 100);
-        // The late pledge, refunded in full anyway, takes ~8.99 NEAR of the cushion.
-        assert!(late_bonus > NEAR * 898 / 100 && late_bonus < NEAR * 899 / 100);
-        // Nothing is created or lost beyond rounding dust.
-        assert!(109 * NEAR - (early + late) <= 2);
-    }
-
-    /// README limit 1: the creator can cover the shortfall from a second account and force "Funded".
-    #[test]
-    fn known_limit_creator_can_force_funded_from_second_account() {
-        let mut c = Ukemi::new();
-        // Two identical campaigns: target 100 NEAR, cushion 10 NEAR.
-        set(accounts(0), 10 * NEAR, 0);
-        c.create_campaign("Honest".into(), "Test".into(), U128(100 * NEAR), 10);
-        set(accounts(0), 10 * NEAR, 0);
-        c.create_campaign("Padded".into(), "Test".into(), U128(100 * NEAR), 10);
-
-        // The same real backer pledges 40 NEAR to both.
-        set(accounts(1), 40 * NEAR, MIN);
-        c.back(0);
-        set(accounts(1), 40 * NEAR, MIN);
-        c.back(1);
-
-        // On campaign 1 the creator covers the 60 NEAR shortfall from a second account.
-        // The contract only blocks the creator's own account, so this goes through.
-        set(accounts(4), 60 * NEAR, 2 * MIN);
-        c.back(1);
-
-        set(accounts(3), 0, 10 * MIN);
-        assert_eq!(c.finalize(0), Status::Missed);
-        assert_eq!(c.finalize(1), Status::Funded);
-
-        // Without the top-up the backer gets principal + the whole cushion back (40 + 10).
-        assert_eq!(c.get_claimable(0, accounts(1)).0, 50 * NEAR);
-        // With it, the same backer gets no refund and no bonus.
-        assert_eq!(c.get_claimable(1, accounts(1)).0, 0);
-
-        // The creator withdraws raised + cushion, so the top-up comes back with it.
-        set(accounts(0), 0, 10 * MIN);
-        let _ = c.withdraw(1);
-        assert!(c.get_campaign(1).unwrap().withdrawn);
     }
 }

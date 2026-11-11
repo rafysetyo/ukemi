@@ -5,3 +5,4 @@ target/
 neardev/
 .near-credentials/
 node_modules/
+*.bak
